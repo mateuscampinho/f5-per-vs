@@ -1,26 +1,19 @@
-import asyncio
 import uuid
-from contextlib import asynccontextmanager
-from typing import Optional
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request, Response
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from f5_client import F5Client, extract_pools_from_irule
 from mermaid_builder import build_diagram
 
-# In-memory session store: session_id -> {host, username, password}
 sessions: dict[str, dict] = {}
 
 app = FastAPI(title="F5 VS Flow Mapper")
 templates = Jinja2Templates(directory="templates")
 
-
-# ---------- Models ----------
 
 class LoginRequest(BaseModel):
     host: str
@@ -30,10 +23,12 @@ class LoginRequest(BaseModel):
 
 class SearchRequest(BaseModel):
     session_id: str
-    query: str  # VS name or destination IP
+    query: str
 
 
-# ---------- Routes ----------
+class LogoutRequest(BaseModel):
+    session_id: str
+
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
@@ -41,43 +36,35 @@ async def index(request: Request):
 
 
 @app.post("/api/login")
-async def login(req: LoginRequest, response: Response):
-    # Test connectivity with credentials
+async def login(req: LoginRequest):
     client = F5Client(req.host, req.username, req.password)
     try:
         await client._get("/ltm/virtual?$top=1&$select=name")
     except httpx.HTTPStatusError as e:
-        await client.close()
         if e.response.status_code in (401, 403):
-            raise HTTPException(status_code=401, detail="Invalid credentials")
-        raise HTTPException(status_code=502, detail=f"F5 error: {e.response.status_code}")
+            raise HTTPException(status_code=401, detail="Credenciais inválidas.")
+        raise HTTPException(status_code=502, detail=f"Erro F5: {e.response.status_code}")
     except Exception as e:
-        await client.close()
-        raise HTTPException(status_code=502, detail=f"Cannot reach F5: {str(e)}")
+        raise HTTPException(status_code=502, detail=f"Não foi possível conectar ao F5: {e}")
     finally:
         await client.close()
 
     session_id = str(uuid.uuid4())
-    sessions[session_id] = {
-        "host": req.host,
-        "username": req.username,
-        "password": req.password,
-    }
-    return {"session_id": session_id, "message": "Login successful"}
+    sessions[session_id] = {"host": req.host, "username": req.username, "password": req.password}
+    return {"session_id": session_id}
 
 
 @app.post("/api/logout")
-async def logout(req: dict):
-    sid = req.get("session_id", "")
-    sessions.pop(sid, None)
-    return {"message": "Logged out"}
+async def logout(req: LogoutRequest):
+    sessions.pop(req.session_id, None)
+    return {"ok": True}
 
 
 @app.post("/api/search")
 async def search(req: SearchRequest):
     sess = sessions.get(req.session_id)
     if not sess:
-        raise HTTPException(status_code=401, detail="Session expired. Please login again.")
+        raise HTTPException(status_code=401, detail="Sessão expirada. Faça login novamente.")
 
     client = F5Client(sess["host"], sess["username"], sess["password"])
     try:
@@ -85,7 +72,7 @@ async def search(req: SearchRequest):
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except httpx.HTTPStatusError as e:
-        raise HTTPException(status_code=502, detail=f"F5 API error: {e.response.status_code} {e.response.text[:200]}")
+        raise HTTPException(status_code=502, detail=f"F5 API error {e.response.status_code}: {e.response.text[:300]}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
@@ -94,8 +81,10 @@ async def search(req: SearchRequest):
 
 async def _build_flow(client: F5Client, query: str) -> dict:
     vs_data = await client.find_vs(query)
+    partition = vs_data.get("partition", "Common")
+    vs_name = vs_data.get("name", "")
 
-    pools: dict[str, dict] = {}  # path -> pool data
+    pools: dict[str, dict] = {}
     policies_data: list[dict] = []
     irules_data: list[dict] = []
 
@@ -104,10 +93,9 @@ async def _build_flow(client: F5Client, query: str) -> dict:
     if default_pool_path:
         pools[default_pool_path] = await client.get_pool(default_pool_path)
 
-    # LTM Policies
-    vs_policies = vs_data.get("policies", {})
-    policy_items = vs_policies.get("items", []) if isinstance(vs_policies, dict) else []
-    for p_ref in policy_items:
+    # LTM Policies — fetch via VS subcollection (the VS body only has a link, not items)
+    policy_refs = await client.get_vs_policies(partition, vs_name)
+    for p_ref in policy_refs:
         pol_path = p_ref.get("fullPath") or p_ref.get("name", "")
         if not pol_path:
             continue
@@ -116,7 +104,6 @@ async def _build_flow(client: F5Client, query: str) -> dict:
         except Exception:
             continue
 
-        # Collect pools referenced by policy forward actions
         rules = pol_data.get("rules", {})
         rule_items = rules.get("items", []) if isinstance(rules, dict) else []
         for rule in rule_items:
@@ -150,11 +137,10 @@ async def _build_flow(client: F5Client, query: str) -> dict:
         irule_text = irule.get("apiAnonymous", "")
         referenced_pools: dict[str, dict] = {}
         for pool_name in extract_pools_from_irule(irule_text):
-            pool_key = pool_name if "/" in pool_name or "~" in pool_name else f"/Common/{pool_name}"
+            pool_key = pool_name if ("/" in pool_name or "~" in pool_name) else f"/Common/{pool_name}"
             if pool_key not in pools:
                 try:
-                    p = await client.get_pool(pool_key)
-                    pools[pool_key] = p
+                    pools[pool_key] = await client.get_pool(pool_key)
                 except Exception:
                     continue
             referenced_pools[pool_key] = pools[pool_key]
@@ -162,16 +148,53 @@ async def _build_flow(client: F5Client, query: str) -> dict:
         irule["referenced_pools"] = referenced_pools
         irules_data.append(irule)
 
-    diagram = build_diagram(vs_data, pools, policies_data, irules_data)
+    diagram, detail_nodes = build_diagram(vs_data, pools, policies_data, irules_data)
+
+    # Build detail store for frontend clicks
+    policy_map = {p.get("name"): p for p in policies_data}
+    irule_map = {r.get("name"): r for r in irules_data}
+
+    detail_store: dict[str, dict] = {}
+    for node_id, info in detail_nodes.items():
+        if info["type"] == "policy":
+            pol = policy_map.get(info["name"], {})
+            rules = pol.get("rules", {})
+            rule_items = rules.get("items", []) if isinstance(rules, dict) else []
+            detail_store[node_id] = {
+                "type": "policy",
+                "name": info["name"],
+                "rules": [_serialize_rule(r) for r in rule_items],
+            }
+        elif info["type"] == "irule":
+            irule = irule_map.get(info["name"], {})
+            detail_store[node_id] = {
+                "type": "irule",
+                "name": info["name"],
+                "content": irule.get("apiAnonymous", ""),
+            }
 
     return {
-        "vs_name": vs_data.get("name"),
+        "vs_name": vs_name,
         "destination": vs_data.get("destination"),
         "mermaid": diagram,
+        "detail_store": detail_store,
         "summary": {
             "default_pool": default_pool_path,
             "policies": len(policies_data),
             "irules": len(irules_data),
             "total_pools": len(pools),
         },
+    }
+
+
+def _serialize_rule(rule: dict) -> dict:
+    conditions = rule.get("conditions", {})
+    cond_items = conditions.get("items", []) if isinstance(conditions, dict) else []
+    actions = rule.get("actions", {})
+    action_items = actions.get("items", []) if isinstance(actions, dict) else []
+    return {
+        "name": rule.get("name", ""),
+        "ordinal": rule.get("ordinal", 0),
+        "conditions": cond_items,
+        "actions": action_items,
     }

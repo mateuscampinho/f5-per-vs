@@ -1,6 +1,5 @@
 import re
 import httpx
-from typing import Optional
 
 
 class F5Client:
@@ -19,39 +18,43 @@ class F5Client:
         return resp.json()
 
     async def find_vs(self, name_or_ip: str) -> dict:
-        """Find a VS by name or destination IP."""
-        data = await self._get("/ltm/virtual?$select=name,destination,pool,sourceAddressTranslation,profiles,rules,policies,partition")
+        data = await self._get("/ltm/virtual?$select=name,destination,pool,sourceAddressTranslation,profiles,rules,partition")
         items = data.get("items", [])
-
         for vs in items:
             dest = vs.get("destination", "")
             vs_name = vs.get("name", "")
             if name_or_ip in vs_name or name_or_ip in dest:
                 full = await self._get(f"/ltm/virtual/~{vs.get('partition','Common')}~{vs_name}")
                 return full
-
         raise ValueError(f"Virtual Server '{name_or_ip}' not found")
 
+    async def get_vs_policies(self, partition: str, vs_name: str) -> list[dict]:
+        """Fetch policies attached to a VS via the subcollection endpoint."""
+        try:
+            data = await self._get(f"/ltm/virtual/~{partition}~{vs_name}/policies")
+            return data.get("items", [])
+        except httpx.HTTPStatusError:
+            return []
+
     async def get_pool(self, pool_path: str) -> dict:
-        """Fetch pool and its members."""
         partition, name = self._parse_path(pool_path)
         pool = await self._get(f"/ltm/pool/~{partition}~{name}")
-        members_data = await self._get(f"/ltm/pool/~{partition}~{name}/members?$select=name,address,port,state")
+        members_data = await self._get(
+            f"/ltm/pool/~{partition}~{name}/members?$select=name,address,port,state"
+        )
         pool["members_detail"] = members_data.get("items", [])
         return pool
 
     async def get_policy(self, policy_path: str) -> dict:
-        """Fetch LTM policy with rules."""
+        """Fetch LTM policy with all rules, conditions and actions expanded."""
         partition, name = self._parse_path(policy_path)
-        return await self._get(f"/ltm/policy/~{partition}~{name}?$expand=rules")
+        return await self._get(f"/ltm/policy/~{partition}~{name}?expandSubcollections=true")
 
     async def get_irule(self, irule_path: str) -> dict:
-        """Fetch iRule content."""
         partition, name = self._parse_path(irule_path)
         return await self._get(f"/ltm/rule/~{partition}~{name}")
 
     def _parse_path(self, path: str) -> tuple[str, str]:
-        """Parse /Common/name or ~Common~name into (partition, name)."""
         clean = path.lstrip("/").replace("~", "/")
         parts = clean.split("/")
         if len(parts) >= 2:
@@ -60,6 +63,5 @@ class F5Client:
 
 
 def extract_pools_from_irule(irule_text: str) -> list[str]:
-    """Find pool names referenced in iRule via 'pool <name>' command."""
     pattern = r'\bpool\s+([\w\-\.\/~]+)'
     return list(set(re.findall(pattern, irule_text)))

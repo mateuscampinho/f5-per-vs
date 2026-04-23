@@ -2,30 +2,33 @@ import re
 
 
 def _safe_id(text: str) -> str:
-    """Convert text to a safe Mermaid node ID."""
     return re.sub(r'[^a-zA-Z0-9_]', '_', str(text))
 
 
 def _label(text: str) -> str:
-    """Escape quotes in label text."""
     return str(text).replace('"', "'")
 
 
-def build_diagram(vs_data: dict, pools: dict, policies: list, irules: list) -> str:
+def build_diagram(vs_data: dict, pools: dict, policies: list, irules: list) -> tuple[str, dict]:
+    """
+    Returns (mermaid_diagram, detail_nodes).
+    detail_nodes: {node_id: {"type": "policy"|"irule", "name": str}}
+    """
     lines = ["flowchart TD"]
+    detail_nodes: dict[str, dict] = {}
 
     # --- VS Root Node ---
     vs_name = vs_data.get("name", "VS")
     dest = vs_data.get("destination", "N/A")
     snat = vs_data.get("sourceAddressTranslation", {})
-    snat_str = f"SNAT: {snat.get('type','none')}"
+    snat_str = f"SNAT: {snat.get('type', 'none')}"
     if snat.get("pool"):
         snat_str += f" ({snat['pool']})"
 
     profiles_raw = vs_data.get("profiles", {})
     if isinstance(profiles_raw, dict):
-        profile_names = [p for p in profiles_raw.get("items", [{"name": "N/A"}]) if isinstance(p, dict)]
-        profiles_str = ", ".join(p.get("name", "") for p in profile_names[:4])
+        profile_items = [p for p in profiles_raw.get("items", []) if isinstance(p, dict)]
+        profiles_str = ", ".join(p.get("name", "") for p in profile_items[:4]) or "N/A"
     else:
         profiles_str = "N/A"
 
@@ -39,16 +42,16 @@ def build_diagram(vs_data: dict, pools: dict, policies: list, irules: list) -> s
     default_pool_path = vs_data.get("pool")
     if default_pool_path and default_pool_path in pools:
         pool = pools[default_pool_path]
-        pool_id = _safe_id(f"pool_{pool.get('name','pool')}")
-        pool_name = pool.get("name", default_pool_path)
-        lines.append(f'  {vs_id} -->|"Default Pool"| {pool_id}["{_label(pool_name)}"]')
+        pool_id = _safe_id(f"pool_{pool.get('name', 'pool')}")
+        lines.append(f'  {vs_id} -->|"Default Pool"| {pool_id}["{_label(pool.get("name", default_pool_path))}"]')
         _append_members(lines, pool_id, pool.get("members_detail", []))
 
     # --- Branch 2: LTM Policies ---
     for policy_data in policies:
         pol_name = policy_data.get("name", "policy")
         pol_id = _safe_id(f"pol_{pol_name}")
-        lines.append(f'  {vs_id} -->|"LTM Policy"| {pol_id}["{_label(pol_name)}"]')
+        lines.append(f'  {vs_id} -->|"LTM Policy"| {pol_id}["{_label(pol_name)}"]:::policy')
+        detail_nodes[pol_id] = {"type": "policy", "name": pol_name}
 
         rules = policy_data.get("rules", {})
         rule_items = rules.get("items", []) if isinstance(rules, dict) else []
@@ -59,15 +62,12 @@ def build_diagram(vs_data: dict, pools: dict, policies: list, irules: list) -> s
 
             conditions = rule.get("conditions", {})
             cond_items = conditions.get("items", []) if isinstance(conditions, dict) else []
-            cond_str = "; ".join(
-                _build_condition_label(c) for c in cond_items[:2]
-            ) or "no conditions"
+            cond_str = "; ".join(_build_condition_label(c) for c in cond_items[:2]) or "no conditions"
 
             lines.append(f'  {pol_id} --> {rule_id}["Rule: {_label(rule_name)}<br/>If: {_label(cond_str)}"]')
 
             actions = rule.get("actions", {})
             action_items = actions.get("items", []) if isinstance(actions, dict) else []
-
             for action in action_items:
                 if action.get("forward") and action.get("pool"):
                     fwd_pool_path = action["pool"]
@@ -84,6 +84,7 @@ def build_diagram(vs_data: dict, pools: dict, policies: list, irules: list) -> s
         rule_name = irule_data.get("name", "irule")
         irule_id = _safe_id(f"irule_{rule_name}")
         lines.append(f'  {vs_id} -->|"iRule"| {irule_id}["{_label(rule_name)}"]:::irule')
+        detail_nodes[irule_id] = {"type": "irule", "name": rule_name}
 
         for pool_path, pool in irule_data.get("referenced_pools", {}).items():
             p_id = _safe_id(f"irulepool_{rule_name}_{pool.get('name','p')}")
@@ -92,8 +93,15 @@ def build_diagram(vs_data: dict, pools: dict, policies: list, irules: list) -> s
             )
             _append_members(lines, p_id, pool.get("members_detail", []))
 
-    lines.append("  classDef irule fill:#ffe0b2,stroke:#e65100")
-    return "\n".join(lines)
+    # --- Click directives ---
+    for node_id, info in detail_nodes.items():
+        tooltip = "Ver regras da Policy" if info["type"] == "policy" else "Ver código da iRule"
+        lines.append(f'  click {node_id} showDetail "{tooltip}"')
+
+    lines.append("  classDef irule fill:#ffe0b2,stroke:#e65100,cursor:pointer")
+    lines.append("  classDef policy fill:#e3f2fd,stroke:#1565c0,cursor:pointer")
+    lines.append("  classDef member fill:#e8f5e9,stroke:#388e3c")
+    return "\n".join(lines), detail_nodes
 
 
 def _build_condition_label(cond: dict) -> str:
@@ -102,7 +110,7 @@ def _build_condition_label(cond: dict) -> str:
         if cond.get(key):
             parts.append(key)
     values = cond.get("values", [])
-    val_str = ",".join(str(v) for v in values[:2])
+    val_str = ", ".join(str(v) for v in values[:2])
     return f"{'/'.join(parts) or 'match'}: {val_str}" if val_str else "/".join(parts) or "condition"
 
 
@@ -117,6 +125,3 @@ def _append_members(lines: list, pool_id: str, members: list):
         if m_state:
             label += f"<br/>({_label(m_state)})"
         lines.append(f'  {pool_id} --> {m_id}["{label}"]:::member')
-
-    if members:
-        lines.append("  classDef member fill:#e8f5e9,stroke:#388e3c")
