@@ -17,7 +17,7 @@ def build_diagram(vs_data: dict, pools: dict, policies: list, irules: list) -> t
     lines = ["flowchart TD"]
     detail_nodes: dict[str, dict] = {}
 
-    # --- VS Root Node ---
+    # VS Root
     vs_name = vs_data.get("name", "VS")
     dest = vs_data.get("destination", "N/A")
     snat = vs_data.get("sourceAddressTranslation", {})
@@ -38,7 +38,7 @@ def build_diagram(vs_data: dict, pools: dict, policies: list, irules: list) -> t
         f'{_label(snat_str)}<br/>Profiles: {_label(profiles_str)}"]'
     )
 
-    # --- Branch 1: Default Pool ---
+    # Branch 1: Default Pool
     default_pool_path = vs_data.get("pool")
     if default_pool_path and default_pool_path in pools:
         pool = pools[default_pool_path]
@@ -46,7 +46,7 @@ def build_diagram(vs_data: dict, pools: dict, policies: list, irules: list) -> t
         lines.append(f'  {vs_id} -->|"Default Pool"| {pool_id}["{_label(pool.get("name", default_pool_path))}"]')
         _append_members(lines, pool_id, pool.get("members_detail", []))
 
-    # --- Branch 2: LTM Policies ---
+    # Branch 2: LTM Policies
     for policy_data in policies:
         pol_name = policy_data.get("name", "policy")
         pol_id = _safe_id(f"pol_{pol_name}")
@@ -79,7 +79,7 @@ def build_diagram(vs_data: dict, pools: dict, policies: list, irules: list) -> t
                         )
                         _append_members(lines, fwd_pool_id, fwd_pool.get("members_detail", []))
 
-    # --- Branch 3: iRules ---
+    # Branch 3: iRules
     for irule_data in irules:
         rule_name = irule_data.get("name", "irule")
         irule_id = _safe_id(f"irule_{rule_name}")
@@ -93,22 +93,14 @@ def build_diagram(vs_data: dict, pools: dict, policies: list, irules: list) -> t
             )
             _append_members(lines, p_id, pool.get("members_detail", []))
 
-    # --- Click directives ---
-    for node_id, info in detail_nodes.items():
-        tooltip = "Ver regras da Policy" if info["type"] == "policy" else "Ver código da iRule"
-        lines.append(f'  click {node_id} showDetail "{tooltip}"')
-
-    lines.append("  classDef irule fill:#ffe0b2,stroke:#e65100,cursor:pointer")
-    lines.append("  classDef policy fill:#e3f2fd,stroke:#1565c0,cursor:pointer")
+    lines.append("  classDef irule fill:#ffe0b2,stroke:#e65100")
+    lines.append("  classDef policy fill:#e3f2fd,stroke:#1565c0")
     lines.append("  classDef member fill:#e8f5e9,stroke:#388e3c")
     return "\n".join(lines), detail_nodes
 
 
 def _build_condition_label(cond: dict) -> str:
-    parts = []
-    for key in ("httpUri", "httpHeader", "httpMethod", "sslExtension"):
-        if cond.get(key):
-            parts.append(key)
+    parts = [k for k in ("httpUri", "httpHeader", "httpMethod", "sslExtension") if cond.get(k)]
     values = cond.get("values", [])
     val_str = ", ".join(str(v) for v in values[:2])
     return f"{'/'.join(parts) or 'match'}: {val_str}" if val_str else "/".join(parts) or "condition"

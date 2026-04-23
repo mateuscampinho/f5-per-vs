@@ -1,7 +1,7 @@
 import uuid
 
 import httpx
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -21,13 +21,19 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class LogoutRequest(BaseModel):
+    session_id: str
+
+
 class SearchRequest(BaseModel):
     session_id: str
     query: str
 
 
-class LogoutRequest(BaseModel):
+class MapRequest(BaseModel):
     session_id: str
+    partition: str
+    vs_name: str
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -45,13 +51,13 @@ async def login(req: LoginRequest):
             raise HTTPException(status_code=401, detail="Credenciais inválidas.")
         raise HTTPException(status_code=502, detail=f"Erro F5: {e.response.status_code}")
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Não foi possível conectar ao F5: {e}")
+        raise HTTPException(status_code=502, detail=f"Não foi possível conectar: {e}")
     finally:
         await client.close()
 
-    session_id = str(uuid.uuid4())
-    sessions[session_id] = {"host": req.host, "username": req.username, "password": req.password}
-    return {"session_id": session_id}
+    sid = str(uuid.uuid4())
+    sessions[sid] = {"host": req.host, "username": req.username, "password": req.password}
+    return {"session_id": sid}
 
 
 @app.post("/api/logout")
@@ -62,13 +68,41 @@ async def logout(req: LogoutRequest):
 
 @app.post("/api/search")
 async def search(req: SearchRequest):
-    sess = sessions.get(req.session_id)
-    if not sess:
-        raise HTTPException(status_code=401, detail="Sessão expirada. Faça login novamente.")
-
+    """Return a list of VSes matching the query (name or destination IP)."""
+    sess = _get_session(req.session_id)
     client = F5Client(sess["host"], sess["username"], sess["password"])
     try:
-        return await _build_flow(client, req.query)
+        matches = await client.list_vs_matches(req.query)
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=502, detail=f"F5 API error {e.response.status_code}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        await client.close()
+
+    if not matches:
+        raise HTTPException(status_code=404, detail=f"Nenhum VS encontrado para '{req.query}'")
+
+    return {
+        "matches": [
+            {
+                "name": vs.get("name"),
+                "partition": vs.get("partition", "Common"),
+                "destination": vs.get("destination", ""),
+                "pool": vs.get("pool", ""),
+            }
+            for vs in matches
+        ]
+    }
+
+
+@app.post("/api/map")
+async def map_vs(req: MapRequest):
+    """Build and return the full flow diagram for a specific VS."""
+    sess = _get_session(req.session_id)
+    client = F5Client(sess["host"], sess["username"], sess["password"])
+    try:
+        return await _build_flow(client, req.partition, req.vs_name)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except httpx.HTTPStatusError as e:
@@ -79,10 +113,15 @@ async def search(req: SearchRequest):
         await client.close()
 
 
-async def _build_flow(client: F5Client, query: str) -> dict:
-    vs_data = await client.find_vs(query)
-    partition = vs_data.get("partition", "Common")
-    vs_name = vs_data.get("name", "")
+def _get_session(session_id: str) -> dict:
+    sess = sessions.get(session_id)
+    if not sess:
+        raise HTTPException(status_code=401, detail="Sessão expirada. Faça login novamente.")
+    return sess
+
+
+async def _build_flow(client: F5Client, partition: str, vs_name: str) -> dict:
+    vs_data = await client.get_vs(partition, vs_name)
 
     pools: dict[str, dict] = {}
     policies_data: list[dict] = []
@@ -93,7 +132,7 @@ async def _build_flow(client: F5Client, query: str) -> dict:
     if default_pool_path:
         pools[default_pool_path] = await client.get_pool(default_pool_path)
 
-    # LTM Policies — fetch via VS subcollection (the VS body only has a link, not items)
+    # LTM Policies via subcollection endpoint
     policy_refs = await client.get_vs_policies(partition, vs_name)
     for p_ref in policy_refs:
         pol_path = p_ref.get("fullPath") or p_ref.get("name", "")
@@ -150,11 +189,11 @@ async def _build_flow(client: F5Client, query: str) -> dict:
 
     diagram, detail_nodes = build_diagram(vs_data, pools, policies_data, irules_data)
 
-    # Build detail store for frontend clicks
+    # Build detail store for frontend
     policy_map = {p.get("name"): p for p in policies_data}
     irule_map = {r.get("name"): r for r in irules_data}
-
     detail_store: dict[str, dict] = {}
+
     for node_id, info in detail_nodes.items():
         if info["type"] == "policy":
             pol = policy_map.get(info["name"], {})

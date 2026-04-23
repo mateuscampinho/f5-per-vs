@@ -17,19 +17,19 @@ class F5Client:
         resp.raise_for_status()
         return resp.json()
 
-    async def find_vs(self, name_or_ip: str) -> dict:
-        data = await self._get("/ltm/virtual?$select=name,destination,pool,sourceAddressTranslation,profiles,rules,partition")
-        items = data.get("items", [])
-        for vs in items:
-            dest = vs.get("destination", "")
-            vs_name = vs.get("name", "")
-            if name_or_ip in vs_name or name_or_ip in dest:
-                full = await self._get(f"/ltm/virtual/~{vs.get('partition','Common')}~{vs_name}")
-                return full
-        raise ValueError(f"Virtual Server '{name_or_ip}' not found")
+    async def list_vs_matches(self, query: str) -> list[dict]:
+        """Return all VSes whose name or destination IP contains the query."""
+        data = await self._get("/ltm/virtual?$select=name,destination,partition,pool")
+        q = query.lower()
+        return [
+            vs for vs in data.get("items", [])
+            if q in vs.get("name", "").lower() or q in vs.get("destination", "").lower()
+        ]
+
+    async def get_vs(self, partition: str, vs_name: str) -> dict:
+        return await self._get(f"/ltm/virtual/~{partition}~{vs_name}")
 
     async def get_vs_policies(self, partition: str, vs_name: str) -> list[dict]:
-        """Fetch policies attached to a VS via the subcollection endpoint."""
         try:
             data = await self._get(f"/ltm/virtual/~{partition}~{vs_name}/policies")
             return data.get("items", [])
@@ -46,7 +46,6 @@ class F5Client:
         return pool
 
     async def get_policy(self, policy_path: str) -> dict:
-        """Fetch LTM policy with all rules, conditions and actions expanded."""
         partition, name = self._parse_path(policy_path)
         return await self._get(f"/ltm/policy/~{partition}~{name}?expandSubcollections=true")
 
@@ -63,5 +62,4 @@ class F5Client:
 
 
 def extract_pools_from_irule(irule_text: str) -> list[str]:
-    pattern = r'\bpool\s+([\w\-\.\/~]+)'
-    return list(set(re.findall(pattern, irule_text)))
+    return list(set(re.findall(r'\bpool\s+([\w\-\.\/~]+)', irule_text)))

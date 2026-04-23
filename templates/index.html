@@ -7,7 +7,6 @@
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0d1117; color: #e6edf3; min-height: 100vh; }
 
     header {
@@ -15,105 +14,106 @@
       padding: 14px 24px; display: flex; align-items: center; gap: 12px;
     }
     header h1 { font-size: 1.1rem; font-weight: 600; color: #58a6ff; }
-    .badge { background: #388e3c; color: #fff; font-size: 0.7rem; padding: 2px 8px; border-radius: 20px; display: none; }
+    .badge { background: #388e3c; color: #fff; font-size: .7rem; padding: 2px 8px; border-radius: 20px; display: none; }
     .badge.visible { display: inline-block; }
 
     .layout { display: flex; height: calc(100vh - 53px); }
 
     /* Sidebar */
-    .sidebar {
-      width: 300px; min-width: 260px; background: #161b22;
-      border-right: 1px solid #30363d; padding: 16px; display: flex;
-      flex-direction: column; gap: 16px; overflow-y: auto;
-    }
+    .sidebar { width: 300px; min-width: 260px; background: #161b22; border-right: 1px solid #30363d; padding: 14px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
     .card { background: #21262d; border: 1px solid #30363d; border-radius: 8px; padding: 14px; }
-    .card h2 { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #8b949e; margin-bottom: 10px; }
+    .card h2 { font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #8b949e; margin-bottom: 10px; }
 
-    label { font-size: 0.8rem; color: #8b949e; display: block; margin-bottom: 3px; margin-top: 8px; }
+    label { font-size: .8rem; color: #8b949e; display: block; margin-bottom: 3px; margin-top: 8px; }
     label:first-of-type { margin-top: 0; }
     input[type="text"], input[type="password"] {
       width: 100%; background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
-      color: #e6edf3; padding: 6px 10px; font-size: 0.85rem; outline: none; transition: border-color .15s;
+      color: #e6edf3; padding: 6px 10px; font-size: .85rem; outline: none; transition: border-color .15s;
     }
     input:focus { border-color: #58a6ff; }
 
-    button { width: 100%; margin-top: 10px; padding: 7px 12px; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: opacity .15s, background .15s; }
+    button { width: 100%; margin-top: 10px; padding: 7px 12px; border: none; border-radius: 6px; cursor: pointer; font-size: .85rem; font-weight: 500; transition: opacity .15s, background .15s; }
     button:disabled { opacity: .5; cursor: not-allowed; }
-    .btn-primary { background: #238636; color: #fff; }
-    .btn-primary:hover:not(:disabled) { background: #2ea043; }
+    .btn-primary  { background: #238636; color: #fff; }
+    .btn-primary:hover:not(:disabled)  { background: #2ea043; }
     .btn-secondary { background: #21262d; color: #e6edf3; border: 1px solid #30363d; }
     .btn-secondary:hover:not(:disabled) { background: #30363d; }
-    .btn-danger { background: #b91c1c; color: #fff; }
-    .btn-danger:hover:not(:disabled) { background: #dc2626; }
+    .btn-danger   { background: #b91c1c; color: #fff; }
+    .btn-danger:hover:not(:disabled)   { background: #dc2626; }
 
     #search-section { display: none; }
 
-    .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 4px; }
+    /* Match list */
+    .match-list { display: flex; flex-direction: column; gap: 6px; }
+    .match-item {
+      background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+      padding: 8px 10px; cursor: pointer; transition: border-color .15s, background .15s;
+    }
+    .match-item:hover { border-color: #58a6ff; background: #161b22; }
+    .match-item.active { border-color: #58a6ff; background: #0d2040; }
+    .match-name { font-size: .82rem; font-weight: 600; color: #e6edf3; }
+    .match-dest { font-size: .72rem; color: #8b949e; margin-top: 2px; font-family: monospace; }
+    .match-part { font-size: .68rem; color: #484f58; margin-top: 1px; }
+
+    /* Summary */
+    .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
     .stat { background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 7px 10px; }
     .stat .num { font-size: 1.2rem; font-weight: 700; color: #58a6ff; }
-    .stat .lbl { color: #8b949e; font-size: 0.7rem; }
+    .stat .lbl { color: #8b949e; font-size: .7rem; }
 
-    /* Main */
-    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; }
-
-    .toolbar {
-      background: #161b22; border-bottom: 1px solid #30363d;
-      padding: 7px 14px; display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: #8b949e;
-    }
-    .toolbar button { width: auto; margin-top: 0; padding: 4px 10px; }
-
-    #diagram-area { flex: 1; overflow: auto; padding: 20px; display: flex; align-items: flex-start; }
-    #diagram-container { background: #fff; border-radius: 8px; padding: 20px; min-width: 500px; display: none; }
-
-    .placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; width: 100%; color: #484f58; gap: 10px; font-size: 0.88rem; }
-    .placeholder svg { opacity: .3; }
-
-    .error-msg { background: #3d1a1a; border: 1px solid #b91c1c; color: #fca5a5; border-radius: 6px; padding: 10px 12px; font-size: 0.8rem; margin-top: 8px; display: none; }
+    .error-msg { background: #3d1a1a; border: 1px solid #b91c1c; color: #fca5a5; border-radius: 6px; padding: 9px 12px; font-size: .8rem; margin-top: 8px; display: none; }
     .error-msg.visible { display: block; }
 
     .spinner { display: none; width: 13px; height: 13px; border: 2px solid #30363d; border-top-color: #58a6ff; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: middle; margin-right: 5px; }
     .spinner.active { display: inline-block; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* Main */
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+    .toolbar { background: #161b22; border-bottom: 1px solid #30363d; padding: 7px 14px; display: flex; align-items: center; gap: 8px; font-size: .8rem; color: #8b949e; }
+    .toolbar button { width: auto; margin-top: 0; padding: 4px 10px; }
+
+    #diagram-area { flex: 1; overflow: auto; padding: 20px; display: flex; align-items: flex-start; }
+    #diagram-container { background: #fff; border-radius: 8px; padding: 20px; min-width: 500px; display: none; }
+
+    .placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; width: 100%; color: #484f58; gap: 10px; font-size: .88rem; }
+    .placeholder svg { opacity: .3; }
+
+    /* Clickable node hint */
+    .hint { font-size: .75rem; color: #58a6ff88; margin-left: auto; }
+
     /* Detail Panel */
     #detail-panel {
-      position: absolute; top: 0; right: 0; bottom: 0;
-      width: 480px; background: #161b22; border-left: 1px solid #30363d;
-      display: flex; flex-direction: column; transform: translateX(100%);
+      position: absolute; top: 0; right: 0; bottom: 0; width: 480px;
+      background: #161b22; border-left: 1px solid #30363d; display: flex;
+      flex-direction: column; transform: translateX(100%);
       transition: transform .25s ease; z-index: 100; box-shadow: -4px 0 20px #0008;
     }
     #detail-panel.open { transform: translateX(0); }
 
-    .panel-header {
-      padding: 14px 16px; border-bottom: 1px solid #30363d;
-      display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    }
-    .panel-header h3 { font-size: 0.9rem; color: #58a6ff; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .panel-header .type-badge { font-size: 0.7rem; padding: 2px 8px; border-radius: 12px; flex-shrink: 0; }
+    .panel-header { padding: 12px 14px; border-bottom: 1px solid #30363d; display: flex; align-items: center; gap: 10px; }
+    .panel-header h3 { font-size: .9rem; color: #58a6ff; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .type-badge { font-size: .68rem; padding: 2px 8px; border-radius: 12px; flex-shrink: 0; }
     .type-policy { background: #1565c0; color: #e3f2fd; }
     .type-irule  { background: #e65100; color: #fff3e0; }
+    .panel-close { background: none; border: none; color: #8b949e; cursor: pointer; font-size: 1.1rem; padding: 4px 6px; width: auto; margin-top: 0; border-radius: 4px; }
+    .panel-close:hover { color: #e6edf3; background: #30363d; }
 
-    .panel-close { background: none; border: none; color: #8b949e; cursor: pointer; font-size: 1.2rem; line-height: 1; padding: 4px; width: auto; margin-top: 0; }
-    .panel-close:hover { color: #e6edf3; }
+    .panel-body { flex: 1; overflow-y: auto; padding: 14px; }
 
-    .panel-body { flex: 1; overflow-y: auto; padding: 14px 16px; }
-
-    /* Policy rules table */
-    .rule-block { background: #21262d; border: 1px solid #30363d; border-radius: 8px; margin-bottom: 12px; overflow: hidden; }
-    .rule-title { background: #0d1117; padding: 8px 12px; font-size: 0.8rem; font-weight: 600; color: #e6edf3; border-bottom: 1px solid #30363d; display: flex; align-items: center; gap: 8px; }
-    .rule-ord { background: #58a6ff22; color: #58a6ff; border-radius: 4px; padding: 1px 6px; font-size: 0.72rem; }
+    /* Policy rules */
+    .rule-block { background: #21262d; border: 1px solid #30363d; border-radius: 8px; margin-bottom: 10px; overflow: hidden; }
+    .rule-title { background: #0d1117; padding: 8px 12px; font-size: .8rem; font-weight: 600; color: #e6edf3; border-bottom: 1px solid #30363d; display: flex; align-items: center; gap: 8px; }
+    .rule-ord { background: #58a6ff22; color: #58a6ff; border-radius: 4px; padding: 1px 6px; font-size: .7rem; }
     .rule-section { padding: 8px 12px; }
-    .rule-section-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: .05em; color: #8b949e; margin-bottom: 6px; }
-    .cond-row, .act-row { font-size: 0.78rem; color: #e6edf3; padding: 4px 8px; background: #0d1117; border-radius: 4px; margin-bottom: 3px; font-family: monospace; }
-    .act-row { color: #a5d6a7; }
-    .empty-note { font-size: 0.75rem; color: #484f58; font-style: italic; }
+    .rule-section + .rule-section { border-top: 1px solid #30363d; }
+    .section-title { font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; color: #8b949e; margin-bottom: 5px; }
+    .cond-row { font-size: .76rem; color: #e6edf3; padding: 3px 8px; background: #0d1117; border-radius: 4px; margin-bottom: 3px; font-family: monospace; }
+    .act-row  { font-size: .76rem; color: #a5d6a7; padding: 3px 8px; background: #0d1117; border-radius: 4px; margin-bottom: 3px; font-family: monospace; }
+    .empty-note { font-size: .73rem; color: #484f58; font-style: italic; }
 
     /* iRule code */
-    .irule-code {
-      background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
-      padding: 12px; font-family: 'Consolas', 'Monaco', monospace; font-size: 0.78rem;
-      line-height: 1.6; white-space: pre; overflow-x: auto; color: #e6edf3;
-    }
+    .irule-code { background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 12px; font-family: 'Consolas','Monaco',monospace; font-size: .76rem; line-height: 1.65; white-space: pre; overflow-x: auto; color: #e6edf3; }
     .tok-comment { color: #8b949e; font-style: italic; }
     .tok-keyword { color: #ff7b72; font-weight: 600; }
     .tok-string  { color: #a5d6a7; }
@@ -153,17 +153,24 @@
     <div class="card" id="search-section">
       <h2>Buscar Virtual Server</h2>
       <label>Nome ou IP de Destino</label>
-      <input type="text" id="inp-query" placeholder="vs_web_80 ou 10.0.0.100"
+      <input type="text" id="inp-query" placeholder="vs_web, 10.0.0.100, :443…"
              onkeydown="if(event.key==='Enter') doSearch()"/>
       <button class="btn-primary" id="btn-search" onclick="doSearch()">
-        <span class="spinner" id="spin-search"></span>Mapear Fluxo
+        <span class="spinner" id="spin-search"></span>Buscar
       </button>
       <div class="error-msg" id="search-error"></div>
     </div>
 
+    <!-- Match results -->
+    <div class="card" id="matches-section" style="display:none">
+      <h2 id="matches-title">Resultados</h2>
+      <div class="match-list" id="match-list"></div>
+    </div>
+
+    <!-- Summary -->
     <div class="card" id="summary-section" style="display:none">
       <h2>Resumo</h2>
-      <div style="font-size:.8rem;color:#8b949e;margin-bottom:6px" id="vs-label">—</div>
+      <div style="font-size:.78rem;color:#8b949e;margin-bottom:6px" id="vs-label">—</div>
       <div class="summary-grid">
         <div class="stat"><div class="num" id="s-pools">0</div><div class="lbl">Pools</div></div>
         <div class="stat"><div class="num" id="s-policies">0</div><div class="lbl">Policies</div></div>
@@ -173,12 +180,12 @@
     </div>
 
     <button class="btn-danger" id="btn-logout" style="display:none" onclick="doLogout()">Desconectar</button>
-
   </aside>
 
   <main class="main">
     <div class="toolbar">
       <span id="toolbar-label">Faça login e busque um Virtual Server.</span>
+      <span class="hint" id="click-hint" style="display:none">Clique em um nó de Policy ou iRule para ver detalhes</span>
       <button class="btn-secondary" id="btn-export" onclick="exportSVG()" style="display:none;margin-left:auto">
         Exportar SVG
       </button>
@@ -207,105 +214,18 @@
 </div>
 
 <script>
-  mermaid.initialize({
-    startOnLoad: false,
-    theme: 'default',
-    securityLevel: 'loose',   // required for click callbacks
-    flowchart: { htmlLabels: true, curve: 'basis' }
-  });
+  mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose', flowchart: { htmlLabels: true, curve: 'basis' } });
 
   let sessionId = null;
   let detailStore = {};
 
-  // Called by Mermaid click directives
-  window.showDetail = function(nodeId) {
-    const detail = detailStore[nodeId];
-    if (!detail) return;
-    const panel = document.getElementById('detail-panel');
-    document.getElementById('panel-title').textContent = detail.name;
-    const badge = document.getElementById('panel-badge');
-    const body  = document.getElementById('panel-body');
-
-    if (detail.type === 'policy') {
-      badge.textContent = 'LTM Policy';
-      badge.className = 'type-badge type-policy';
-      body.innerHTML = renderPolicy(detail);
-    } else {
-      badge.textContent = 'iRule';
-      badge.className = 'type-badge type-irule';
-      body.innerHTML = renderIRule(detail);
-    }
-    panel.classList.add('open');
-  };
-
-  function closePanel() {
-    document.getElementById('detail-panel').classList.remove('open');
-  }
-
-  function renderPolicy(detail) {
-    if (!detail.rules || detail.rules.length === 0)
-      return '<p class="empty-note">Nenhuma regra encontrada.</p>';
-
-    return detail.rules.map(rule => {
-      const conds = (rule.conditions || []).map(c => {
-        const keys = ['httpUri','httpHeader','httpMethod','httpCookie','sslExtension','geoip'];
-        const match = keys.filter(k => c[k]).join('/') || 'match';
-        const vals = (c.values || []).join(', ');
-        const op = c.equals ? '==' : c.contains ? 'contains' : c.startsWith ? 'startsWith' : '';
-        return `<div class="cond-row">${esc(match)} ${esc(op)} ${esc(vals)}</div>`;
-      }).join('') || '<div class="empty-note">Sem condições (default)</div>';
-
-      const acts = (rule.actions || []).map(a => {
-        if (a.forward && a.pool) return `<div class="act-row">forward → pool: ${esc(a.pool)}</div>`;
-        if (a.redirect)          return `<div class="act-row">redirect → ${esc(a.location || '')}</div>`;
-        if (a.reset)             return `<div class="act-row">reset connection</div>`;
-        if (a.drop)              return `<div class="act-row">drop</div>`;
-        if (a.persist)           return `<div class="act-row">persist: ${esc(a.tmName || '')}</div>`;
-        const key = Object.keys(a).filter(k => k !== 'name' && k !== 'ordinal')[0] || 'action';
-        return `<div class="act-row">${esc(key)}: ${esc(JSON.stringify(a[key]).slice(0,60))}</div>`;
-      }).join('') || '<div class="empty-note">Sem ações</div>';
-
-      return `
-        <div class="rule-block">
-          <div class="rule-title">
-            <span class="rule-ord">#${rule.ordinal}</span>
-            ${esc(rule.name)}
-          </div>
-          <div class="rule-section">
-            <div class="rule-section-title">Condições</div>${conds}
-          </div>
-          <div class="rule-section" style="border-top:1px solid #30363d">
-            <div class="rule-section-title">Ações</div>${acts}
-          </div>
-        </div>`;
-    }).join('');
-  }
-
-  function renderIRule(detail) {
-    const highlighted = highlightTcl(detail.content || '');
-    return `<div class="irule-code">${highlighted}</div>`;
-  }
-
-  function highlightTcl(code) {
-    const keywords = /\b(if|else|elseif|when|foreach|for|while|switch|return|set|proc|namespace|package|catch|error|break|continue|and|or|not|in|ni)\b/g;
-    const commands = /\b(pool|node|snat|persist|redirect|respond|HTTP::respond|HTTP::redirect|HTTP::header|HTTP::uri|HTTP::host|HTTP::method|LB::server|IP::client_addr|TCP::local_port|SSL::cert|log|after|event|priority|class|datagroup|table|timing)\b/g;
-
-    return esc(code)
-      .replace(/(&lt;!--[\s\S]*?--&gt;|#[^\n]*)/g, m => `<span class="tok-comment">${m}</span>`)
-      .replace(/(&quot;[^&]*&quot;|&#39;[^&#]*&#39;|\{[^}]*\})/g, m => `<span class="tok-string">${m}</span>`)
-      .replace(keywords, m => `<span class="tok-keyword">${m}</span>`)
-      .replace(commands, m => `<span class="tok-cmd">${m}</span>`)
-      .replace(/([{}])/g, m => `<span class="tok-braces">${m}</span>`);
-  }
-
-  // ── Auth ──────────────────────────────────────────────
+  // ── Login / Logout ────────────────────────────────────
 
   async function doLogin() {
     const host = v('inp-host'), user = v('inp-user'), pass = v('inp-pass');
     const errEl = ge('login-error');
     errEl.classList.remove('visible');
     if (!host || !user || !pass) { showErr(errEl, 'Preencha todos os campos.'); return; }
-
     setLoading('spin-login', 'btn-login', true);
     try {
       const resp = await post('/api/login', { host, username: user, password: pass });
@@ -316,10 +236,29 @@
       ge('search-section').style.display = 'block';
       ge('btn-logout').style.display = 'block';
       ge('connected-badge').classList.add('visible');
-      ge('toolbar-label').textContent = `Conectado em ${host} — busque um VS pelo nome ou IP de destino.`;
+      ge('toolbar-label').textContent = `Conectado em ${host}`;
       ge('inp-query').focus();
     } finally { setLoading('spin-login', 'btn-login', false); }
   }
+
+  async function doLogout() {
+    if (sessionId) { await post('/api/logout', { session_id: sessionId }).catch(() => {}); sessionId = null; }
+    ge('login-section').style.display = 'block';
+    ge('search-section').style.display = 'none';
+    ge('matches-section').style.display = 'none';
+    ge('btn-logout').style.display = 'none';
+    ge('summary-section').style.display = 'none';
+    ge('connected-badge').classList.remove('visible');
+    ge('diagram-container').style.display = 'none';
+    ge('placeholder').style.display = 'flex';
+    ge('btn-export').style.display = 'none';
+    ge('click-hint').style.display = 'none';
+    ge('toolbar-label').textContent = 'Faça login e busque um Virtual Server.';
+    ge('inp-pass').value = '';
+    closePanel();
+  }
+
+  // ── Search (list matches) ─────────────────────────────
 
   async function doSearch() {
     const query = v('inp-query');
@@ -328,38 +267,76 @@
     if (!query) { showErr(errEl, 'Informe o nome ou IP do VS.'); return; }
 
     closePanel();
-    setLoading('spin-search', 'btn-search', true);
-    ge('diagram-container').style.display = 'none';
-    ge('placeholder').style.display = 'flex';
+    ge('matches-section').style.display = 'none';
     ge('summary-section').style.display = 'none';
     ge('btn-export').style.display = 'none';
+    ge('click-hint').style.display = 'none';
+    setLoading('spin-search', 'btn-search', true);
 
     try {
       const resp = await post('/api/search', { session_id: sessionId, query });
       const data = await resp.json();
       if (!resp.ok) { showErr(errEl, data.detail || 'Erro na busca.'); return; }
-      detailStore = data.detail_store || {};
-      await renderDiagram(data.mermaid);
-      updateSummary(data);
+
+      const { matches } = data;
+      if (matches.length === 1) {
+        // Single match — map directly
+        await doMap(matches[0]);
+      } else {
+        // Multiple matches — show list
+        renderMatchList(matches);
+      }
     } finally { setLoading('spin-search', 'btn-search', false); }
   }
 
-  async function doLogout() {
-    if (sessionId) {
-      await post('/api/logout', { session_id: sessionId }).catch(() => {});
-      sessionId = null;
-    }
-    ge('login-section').style.display = 'block';
-    ge('search-section').style.display = 'none';
-    ge('btn-logout').style.display = 'none';
-    ge('summary-section').style.display = 'none';
-    ge('connected-badge').classList.remove('visible');
+  function renderMatchList(matches) {
+    const list = ge('match-list');
+    list.innerHTML = '';
+    ge('matches-title').textContent = `${matches.length} resultado${matches.length > 1 ? 's' : ''}`;
+
+    matches.forEach(m => {
+      const item = document.createElement('div');
+      item.className = 'match-item';
+      item.innerHTML = `
+        <div class="match-name">${esc(m.name)}</div>
+        <div class="match-dest">${esc(m.destination)}</div>
+        <div class="match-part">Partition: ${esc(m.partition)}</div>
+      `;
+      item.addEventListener('click', () => {
+        list.querySelectorAll('.match-item').forEach(el => el.classList.remove('active'));
+        item.classList.add('active');
+        doMap(m);
+      });
+      list.appendChild(item);
+    });
+
+    ge('matches-section').style.display = 'block';
+  }
+
+  // ── Map (full flow) ───────────────────────────────────
+
+  async function doMap(vs) {
     ge('diagram-container').style.display = 'none';
     ge('placeholder').style.display = 'flex';
-    ge('btn-export').style.display = 'none';
-    ge('toolbar-label').textContent = 'Faça login e busque um Virtual Server.';
-    ge('inp-pass').value = '';
+    ge('summary-section').style.display = 'none';
+    ge('toolbar-label').textContent = `Carregando ${vs.name}…`;
     closePanel();
+
+    const resp = await post('/api/map', { session_id: sessionId, partition: vs.partition, vs_name: vs.name });
+    const data = await resp.json();
+
+    if (!resp.ok) {
+      ge('toolbar-label').textContent = 'Erro ao carregar o VS.';
+      showErr(ge('search-error'), data.detail || 'Erro ao mapear VS.');
+      return;
+    }
+
+    detailStore = data.detail_store || {};
+    await renderDiagram(data.mermaid);
+    updateSummary(data);
+
+    const hasDetails = Object.keys(detailStore).length > 0;
+    ge('click-hint').style.display = hasDetails ? 'inline' : 'none';
   }
 
   // ── Diagram ───────────────────────────────────────────
@@ -373,10 +350,33 @@
       ge('placeholder').style.display = 'none';
       container.style.display = 'block';
       ge('btn-export').style.display = 'inline-block';
+      attachNodeClicks(container);
     } catch (e) {
-      container.innerHTML = `<pre style="color:#b91c1c;font-size:.75rem;white-space:pre-wrap">${esc(code)}</pre>`;
+      container.innerHTML = `<pre style="color:#b91c1c;font-size:.72rem;white-space:pre-wrap">${esc(code)}</pre>`;
       container.style.display = 'block';
       ge('placeholder').style.display = 'none';
+    }
+  }
+
+  function attachNodeClicks(container) {
+    // Mermaid renders nodes as <g class="node" id="flowchart-{nodeId}-{n}">
+    // We match against our detailStore keys to find clickable nodes.
+    for (const nodeId of Object.keys(detailStore)) {
+      // querySelector with attribute selector to find SVG g elements whose id contains the nodeId
+      const svgNodes = container.querySelectorAll(`g[id*="${nodeId}"]`);
+      svgNodes.forEach(el => {
+        el.style.cursor = 'pointer';
+        // Visual ring to indicate clickability
+        const rect = el.querySelector('rect, polygon, circle, ellipse');
+        if (rect) {
+          rect.style.strokeWidth = '2.5';
+          rect.style.filter = 'drop-shadow(0 0 4px #58a6ff66)';
+        }
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          showDetail(nodeId);
+        });
+      });
     }
   }
 
@@ -401,12 +401,81 @@
     a.click();
   }
 
-  // ── Utils ─────────────────────────────────────────────
+  // ── Detail Panel ──────────────────────────────────────
 
-  const ge = id => document.getElementById(id);
-  const v  = id => ge(id).value.trim();
+  function showDetail(nodeId) {
+    const detail = detailStore[nodeId];
+    if (!detail) return;
+    const panel = ge('detail-panel');
+    ge('panel-title').textContent = detail.name;
+    const badge = ge('panel-badge');
+    const body  = ge('panel-body');
+    if (detail.type === 'policy') {
+      badge.textContent = 'LTM Policy'; badge.className = 'type-badge type-policy';
+      body.innerHTML = renderPolicy(detail);
+    } else {
+      badge.textContent = 'iRule'; badge.className = 'type-badge type-irule';
+      body.innerHTML = renderIRule(detail);
+    }
+    panel.classList.add('open');
+  }
+
+  function closePanel() { ge('detail-panel').classList.remove('open'); }
+
+  function renderPolicy(detail) {
+    if (!detail.rules || !detail.rules.length)
+      return '<p class="empty-note">Nenhuma regra encontrada.</p>';
+
+    return detail.rules.map(rule => {
+      const conds = (rule.conditions || []).map(c => {
+        const keys = ['httpUri','httpHeader','httpMethod','httpCookie','sslExtension','geoip'];
+        const match = keys.filter(k => c[k]).join('/') || 'match';
+        const op    = c.equals ? '==' : c.contains ? 'contains' : c.startsWith ? 'startsWith' : c.not ? 'not' : '';
+        const vals  = (c.values || []).join(', ');
+        return `<div class="cond-row">${esc(match)} ${esc(op)} ${esc(vals)}</div>`;
+      }).join('') || '<div class="empty-note">Sem condições (default)</div>';
+
+      const acts = (rule.actions || []).map(a => {
+        if (a.forward && a.pool)  return `<div class="act-row">forward → pool: ${esc(a.pool)}</div>`;
+        if (a.redirect)           return `<div class="act-row">redirect → ${esc(a.location || '')}</div>`;
+        if (a.reset)              return `<div class="act-row">reset</div>`;
+        if (a.drop)               return `<div class="act-row">drop</div>`;
+        if (a.persist)            return `<div class="act-row">persist: ${esc(a.tmName || '')}</div>`;
+        if (a.setVariable)        return `<div class="act-row">set-variable: ${esc(a.variableName || '')} = ${esc(a.expression || '')}</div>`;
+        const key = Object.keys(a).find(k => !['name','ordinal','kind','selfLink'].includes(k)) || 'action';
+        return `<div class="act-row">${esc(key)}</div>`;
+      }).join('') || '<div class="empty-note">Sem ações</div>';
+
+      return `
+        <div class="rule-block">
+          <div class="rule-title"><span class="rule-ord">#${rule.ordinal}</span>${esc(rule.name)}</div>
+          <div class="rule-section"><div class="section-title">Condições</div>${conds}</div>
+          <div class="rule-section"><div class="section-title">Ações</div>${acts}</div>
+        </div>`;
+    }).join('');
+  }
+
+  function renderIRule(detail) {
+    return `<div class="irule-code">${highlightTcl(detail.content || '')}</div>`;
+  }
+
+  function highlightTcl(code) {
+    const safe = esc(code);
+    const kw = /\b(if|else|elseif|when|foreach|for|while|switch|return|set|proc|namespace|package|catch|error|break|continue|and|or|not|in|ni|default)\b/g;
+    const cmds = /\b(pool|node|snat|persist|redirect|respond|log|after|event|priority|class|datagroup|table|timing|HTTP::respond|HTTP::redirect|HTTP::header|HTTP::uri|HTTP::host|HTTP::method|HTTP::cookie|LB::server|IP::client_addr|IP::remote_addr|TCP::local_port|SSL::cert|SSL::cipher|iRule)\b/g;
+    return safe
+      .replace(/(#[^\n]*)/g,      '<span class="tok-comment">$1</span>')
+      .replace(/(&quot;.*?&quot;)/g, '<span class="tok-string">$1</span>')
+      .replace(kw,  '<span class="tok-keyword">$&</span>')
+      .replace(cmds,'<span class="tok-cmd">$&</span>')
+      .replace(/([{}])/g, '<span class="tok-braces">$1</span>');
+  }
+
+  // ── Utils ─────────────────────────────────────────────
+  const ge   = id => document.getElementById(id);
+  const v    = id => ge(id).value.trim();
   const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  const esc = t => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const esc  = t => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   function showErr(el, msg) { el.textContent = msg; el.classList.add('visible'); }
   function setLoading(sid, bid, on) { ge(sid).classList.toggle('active', on); ge(bid).disabled = on; }
 </script>
