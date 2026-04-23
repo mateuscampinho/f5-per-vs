@@ -456,19 +456,27 @@
   }
 
   function renderIRule(detail) {
-    return `<div class="irule-code">${highlightTcl(detail.content || '')}</div>`;
+    const content = detail.content || '';
+    return `
+      <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
+        <button class="btn-secondary" style="width:auto;margin-top:0;padding:3px 10px;font-size:.75rem"
+                onclick="copyIRule()">Copiar</button>
+      </div>
+      <textarea id="irule-raw" readonly
+        style="width:100%;height:calc(100vh - 200px);background:#0d1117;border:1px solid #30363d;
+               border-radius:6px;color:#e6edf3;font-family:'Consolas','Monaco',monospace;
+               font-size:.76rem;line-height:1.65;padding:12px;resize:none;outline:none"
+      >${esc(content)}</textarea>`;
   }
 
-  function highlightTcl(code) {
-    const safe = esc(code);
-    const kw = /\b(if|else|elseif|when|foreach|for|while|switch|return|set|proc|namespace|package|catch|error|break|continue|and|or|not|in|ni|default)\b/g;
-    const cmds = /\b(pool|node|snat|persist|redirect|respond|log|after|event|priority|class|datagroup|table|timing|HTTP::respond|HTTP::redirect|HTTP::header|HTTP::uri|HTTP::host|HTTP::method|HTTP::cookie|LB::server|IP::client_addr|IP::remote_addr|TCP::local_port|SSL::cert|SSL::cipher|iRule)\b/g;
-    return safe
-      .replace(/(#[^\n]*)/g,      '<span class="tok-comment">$1</span>')
-      .replace(/(&quot;.*?&quot;)/g, '<span class="tok-string">$1</span>')
-      .replace(kw,  '<span class="tok-keyword">$&</span>')
-      .replace(cmds,'<span class="tok-cmd">$&</span>')
-      .replace(/([{}])/g, '<span class="tok-braces">$1</span>');
+  function copyIRule() {
+    const ta = ge('irule-raw');
+    if (!ta) return;
+    navigator.clipboard.writeText(ta.value).then(() => {
+      const btn = ta.previousElementSibling.querySelector('button');
+      btn.textContent = 'Copiado!';
+      setTimeout(() => btn.textContent = 'Copiar', 1500);
+    });
   }
 
   // ── Utils ─────────────────────────────────────────────
