@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>F5 VS Flow Mapper</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0d1117;
+      color: #e6edf3;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header h1 { font-size: 1.1rem; font-weight: 600; color: #58a6ff; }
+    header .badge {
+      background: #388e3c;
+      color: #fff;
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: 20px;
+      display: none;
+    }
+    header .badge.visible { display: inline-block; }
+
+    .layout {
+      display: flex;
+      height: calc(100vh - 53px);
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 320px;
+      min-width: 280px;
+      background: #161b22;
+      border-right: 1px solid #30363d;
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      overflow-y: auto;
+    }
+
+    .card {
+      background: #21262d;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .card h2 {
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #8b949e;
+      margin-bottom: 12px;
+    }
+
+    label { font-size: 0.82rem; color: #8b949e; display: block; margin-bottom: 4px; margin-top: 10px; }
+    label:first-of-type { margin-top: 0; }
+
+    input[type="text"], input[type="password"] {
+      width: 100%;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      color: #e6edf3;
+      padding: 7px 10px;
+      font-size: 0.88rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus { border-color: #58a6ff; }
+
+    button {
+      width: 100%;
+      margin-top: 12px;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.88rem;
+      font-weight: 500;
+      transition: opacity 0.15s, background 0.15s;
+    }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-primary { background: #238636; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #2ea043; }
+    .btn-secondary { background: #21262d; color: #e6edf3; border: 1px solid #30363d; }
+    .btn-secondary:hover:not(:disabled) { background: #30363d; }
+    .btn-danger { background: #b91c1c; color: #fff; }
+    .btn-danger:hover:not(:disabled) { background: #dc2626; }
+
+    #search-section { display: none; }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .stat {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 0.8rem;
+    }
+    .stat .num { font-size: 1.3rem; font-weight: 700; color: #58a6ff; }
+    .stat .lbl { color: #8b949e; font-size: 0.72rem; }
+
+    /* Main content */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .toolbar {
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.82rem;
+      color: #8b949e;
+    }
+    .toolbar button { width: auto; margin-top: 0; padding: 4px 12px; }
+
+    #diagram-area {
+      flex: 1;
+      overflow: auto;
+      padding: 24px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-start;
+    }
+
+    #diagram-container {
+      background: #fff;
+      border-radius: 8px;
+      padding: 20px;
+      min-width: 600px;
+    }
+
+    .placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      width: 100%;
+      color: #484f58;
+      gap: 12px;
+      font-size: 0.9rem;
+    }
+    .placeholder svg { opacity: 0.3; }
+
+    .error-msg {
+      background: #3d1a1a;
+      border: 1px solid #b91c1c;
+      color: #fca5a5;
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 0.83rem;
+      margin-top: 8px;
+      display: none;
+    }
+    .error-msg.visible { display: block; }
+
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid #30363d;
+      border-top-color: #58a6ff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+      display: none;
+    }
+    .spinner.active { display: inline-block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<header>
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" stroke-width="2">
+    <rect x="2" y="3" width="20" height="14" rx="2"/>
+    <line x1="8" y1="21" x2="16" y2="21"/>
+    <line x1="12" y1="17" x2="12" y2="21"/>
+  </svg>
+  <h1>F5 BIG-IP — VS Flow Mapper</h1>
+  <span class="badge" id="connected-badge">Conectado</span>
+</header>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+
+    <!-- Login -->
+    <div class="card" id="login-section">
+      <h2>Conexão F5</h2>
+      <label>IP / Hostname</label>
+      <input type="text" id="inp-host" placeholder="192.168.1.1" autocomplete="off"/>
+      <label>Usuário</label>
+      <input type="text" id="inp-user" placeholder="admin" autocomplete="off"/>
+      <label>Senha</label>
+      <input type="password" id="inp-pass" placeholder="••••••••"/>
+      <button class="btn-primary" id="btn-login" onclick="doLogin()">
+        <span class="spinner" id="spin-login"></span>Conectar
+      </button>
+      <div class="error-msg" id="login-error"></div>
+    </div>
+
+    <!-- Search -->
+    <div class="card" id="search-section">
+      <h2>Buscar Virtual Server</h2>
+      <label>Nome ou IP de Destino</label>
+      <input type="text" id="inp-query" placeholder="vs_web_80 ou 10.0.0.100"
+             onkeydown="if(event.key==='Enter') doSearch()"/>
+      <button class="btn-primary" id="btn-search" onclick="doSearch()">
+        <span class="spinner" id="spin-search"></span>Mapear Fluxo
+      </button>
+      <div class="error-msg" id="search-error"></div>
+    </div>
+
+    <!-- Summary -->
+    <div class="card" id="summary-section" style="display:none">
+      <h2>Resumo</h2>
+      <div style="font-size:0.83rem; color:#8b949e; margin-bottom:8px;" id="vs-label">—</div>
+      <div class="summary-grid">
+        <div class="stat"><div class="num" id="s-pools">0</div><div class="lbl">Pools</div></div>
+        <div class="stat"><div class="num" id="s-policies">0</div><div class="lbl">Policies</div></div>
+        <div class="stat"><div class="num" id="s-irules">0</div><div class="lbl">iRules</div></div>
+        <div class="stat"><div class="num" id="s-default">—</div><div class="lbl">Default Pool</div></div>
+      </div>
+    </div>
+
+    <!-- Logout -->
+    <button class="btn-danger" id="btn-logout" style="display:none" onclick="doLogout()">Desconectar</button>
+
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="toolbar">
+      <span id="toolbar-label">Faça login e busque um Virtual Server para visualizar o fluxo.</span>
+      <button class="btn-secondary" id="btn-export" onclick="exportSVG()" style="display:none; margin-left:auto;">
+        Exportar SVG
+      </button>
+    </div>
+
+    <div id="diagram-area">
+      <div class="placeholder" id="placeholder">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M12 8v4l3 3"/>
+        </svg>
+        <span>Nenhum diagrama gerado</span>
+      </div>
+      <div id="diagram-container" style="display:none"></div>
+    </div>
+  </main>
+</div>
+
+<script>
+  mermaid.initialize({ startOnLoad: false, theme: 'default', flowchart: { htmlLabels: true, curve: 'basis' } });
+
+  let sessionId = null;
+
+  async function doLogin() {
+    const host = document.getElementById('inp-host').value.trim();
+    const user = document.getElementById('inp-user').value.trim();
+    const pass = document.getElementById('inp-pass').value;
+    const errEl = document.getElementById('login-error');
+    errEl.classList.remove('visible');
+
+    if (!host || !user || !pass) { showError(errEl, 'Preencha todos os campos.'); return; }
+
+    setLoading('spin-login', 'btn-login', true);
+    try {
+      const resp = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ host, username: user, password: pass })
+      });
+      const data = await resp.json();
+      if (!resp.ok) { showError(errEl, data.detail || 'Erro ao conectar.'); return; }
+
+      sessionId = data.session_id;
+      document.getElementById('login-section').style.display = 'none';
+      document.getElementById('search-section').style.display = 'block';
+      document.getElementById('btn-logout').style.display = 'block';
+      document.getElementById('connected-badge').classList.add('visible');
+      document.getElementById('toolbar-label').textContent = `Conectado em ${host} — busque um VS pelo nome ou IP de destino.`;
+      document.getElementById('inp-query').focus();
+    } finally {
+      setLoading('spin-login', 'btn-login', false);
+    }
+  }
+
+  async function doSearch() {
+    const query = document.getElementById('inp-query').value.trim();
+    const errEl = document.getElementById('search-error');
+    errEl.classList.remove('visible');
+    if (!query) { showError(errEl, 'Informe o nome ou IP do VS.'); return; }
+
+    setLoading('spin-search', 'btn-search', true);
+    document.getElementById('diagram-container').style.display = 'none';
+    document.getElementById('placeholder').style.display = 'flex';
+    document.getElementById('summary-section').style.display = 'none';
+    document.getElementById('btn-export').style.display = 'none';
+
+    try {
+      const resp = await fetch('/api/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId, query })
+      });
+      const data = await resp.json();
+      if (!resp.ok) { showError(errEl, data.detail || 'Erro na busca.'); return; }
+
+      await renderDiagram(data.mermaid);
+      updateSummary(data);
+    } finally {
+      setLoading('spin-search', 'btn-search', false);
+    }
+  }
+
+  async function renderDiagram(code) {
+    const container = document.getElementById('diagram-container');
+    container.innerHTML = '';
+    try {
+      const { svg } = await mermaid.render('mermaid-svg-' + Date.now(), code);
+      container.innerHTML = svg;
+      document.getElementById('placeholder').style.display = 'none';
+      container.style.display = 'block';
+      document.getElementById('btn-export').style.display = 'inline-block';
+    } catch (e) {
+      container.innerHTML = `<pre style="color:#b91c1c;font-size:0.8rem;white-space:pre-wrap">${escHtml(code)}</pre>`;
+      container.style.display = 'block';
+      document.getElementById('placeholder').style.display = 'none';
+    }
+  }
+
+  function updateSummary(data) {
+    const s = data.summary;
+    document.getElementById('vs-label').textContent = `${data.vs_name} — ${data.destination}`;
+    document.getElementById('s-pools').textContent = s.total_pools;
+    document.getElementById('s-policies').textContent = s.policies;
+    document.getElementById('s-irules').textContent = s.irules;
+    const dp = s.default_pool || '—';
+    document.getElementById('s-default').textContent = dp.split('/').pop() || dp;
+    document.getElementById('summary-section').style.display = 'block';
+    document.getElementById('toolbar-label').textContent = `VS: ${data.vs_name}  |  Dest: ${data.destination}`;
+  }
+
+  async function doLogout() {
+    if (sessionId) {
+      await fetch('/api/logout', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId })
+      }).catch(() => {});
+      sessionId = null;
+    }
+    document.getElementById('login-section').style.display = 'block';
+    document.getElementById('search-section').style.display = 'none';
+    document.getElementById('btn-logout').style.display = 'none';
+    document.getElementById('summary-section').style.display = 'none';
+    document.getElementById('connected-badge').classList.remove('visible');
+    document.getElementById('diagram-container').style.display = 'none';
+    document.getElementById('placeholder').style.display = 'flex';
+    document.getElementById('btn-export').style.display = 'none';
+    document.getElementById('toolbar-label').textContent = 'Faça login e busque um Virtual Server para visualizar o fluxo.';
+    document.getElementById('inp-pass').value = '';
+  }
+
+  function exportSVG() {
+    const svg = document.querySelector('#diagram-container svg');
+    if (!svg) return;
+    const blob = new Blob([svg.outerHTML], { type: 'image/svg+xml' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'f5-vs-flow.svg';
+    a.click();
+  }
+
+  function showError(el, msg) { el.textContent = msg; el.classList.add('visible'); }
+  function setLoading(spinId, btnId, active) {
+    document.getElementById(spinId).classList.toggle('active', active);
+    document.getElementById(btnId).disabled = active;
+  }
+  function escHtml(t) { return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+</script>
+</body>
+</html>
