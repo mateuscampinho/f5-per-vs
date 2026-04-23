@@ -29,6 +29,18 @@ class F5Client:
     async def get_vs(self, partition: str, vs_name: str) -> dict:
         return await self._get(f"/ltm/virtual/~{partition}~{vs_name}")
 
+    async def get_vs_waf_policy(self, partition: str, vs_name: str) -> str | None:
+        """Return ASM policy name if WAF is enabled on this VS, else None."""
+        try:
+            vs_path = f"/Common/{vs_name}" if partition == "Common" else f"/{partition}/{vs_name}"
+            data = await self._get(f"/asm/policies?$filter=virtualServers+eq+{vs_path}&$select=name")
+            items = data.get("items", [])
+            if items:
+                return items[0].get("name")
+        except Exception:
+            pass
+        return None
+
     async def get_vs_policies(self, partition: str, vs_name: str) -> list[dict]:
         try:
             data = await self._get(f"/ltm/virtual/~{partition}~{vs_name}/policies")

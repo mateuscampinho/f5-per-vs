@@ -7,7 +7,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from f5_client import F5Client, extract_pools_from_irule
-from mermaid_builder import build_diagram
+from graph_builder import build_graph
 
 sessions: dict[str, dict] = {}
 
@@ -184,11 +184,14 @@ async def _build_flow(client: F5Client, partition: str, vs_name: str) -> dict:
         irule["referenced_pools"] = referenced_pools
         irules_data.append(irule)
 
-    diagram, detail_nodes = build_diagram(vs_data, pools, policies_data, irules_data)
+    # WAF / ASM detection
+    waf_policy = await client.get_vs_waf_policy(partition, vs_name)
 
-    # Build detail store for frontend
+    graph, detail_nodes = build_graph(vs_data, pools, policies_data, irules_data, waf_policy)
+
+    # Build detail store for frontend panel
     policy_map = {p.get("name"): p for p in policies_data}
-    irule_map = {r.get("name"): r for r in irules_data}
+    irule_map  = {r.get("name"): r for r in irules_data}
     detail_store: dict[str, dict] = {}
 
     for node_id, info in detail_nodes.items():
@@ -210,13 +213,14 @@ async def _build_flow(client: F5Client, partition: str, vs_name: str) -> dict:
     return {
         "vs_name": vs_name,
         "destination": vs_data.get("destination"),
-        "mermaid": diagram,
+        "graph": graph,
         "detail_store": detail_store,
         "summary": {
             "default_pool": default_pool_path,
             "policies": len(policies_data),
             "irules": len(irules_data),
             "total_pools": len(pools),
+            "waf": waf_policy,
         },
     }
 
