@@ -9,9 +9,9 @@ def _clean_addr(addr: str) -> str:
     return addr.split('%')[0]
 
 
-def _node_size(label: str, char_w: float = 7.2, line_h: int = 19,
-               pad_x: int = 32, pad_y: int = 24,
-               min_w: int = 130, min_h: int = 44) -> tuple[int, int]:
+def _node_size(label: str, char_w: float = 8.5, line_h: int = 22,
+               pad_x: int = 40, pad_y: int = 30,
+               min_w: int = 160, min_h: int = 56) -> tuple[int, int]:
     """Estimate Cytoscape node width/height from label text."""
     lines = label.split('\n')
     w = max(min_w, int(max(len(l) for l in lines) * char_w) + pad_x)
@@ -20,7 +20,7 @@ def _node_size(label: str, char_w: float = 7.2, line_h: int = 19,
 
 
 def _pool_size(label: str) -> tuple[int, int]:
-    return _node_size(label, char_w=6.5, line_h=16, pad_x=32, pad_y=22, min_w=160, min_h=50)
+    return _node_size(label, char_w=8.0, line_h=20, pad_x=40, pad_y=28, min_w=180, min_h=60)
 
 
 def _pool_label(pool_name: str, members: list) -> str:
