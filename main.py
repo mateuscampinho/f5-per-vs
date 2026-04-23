@@ -143,12 +143,9 @@ async def _build_flow(client: F5Client, partition: str, vs_name: str) -> dict:
         except Exception:
             continue
 
-        rules = pol_data.get("rules", {})
-        rule_items = rules.get("items", []) if isinstance(rules, dict) else []
+        rule_items = _get_ref_items(pol_data, "rulesReference")
         for rule in rule_items:
-            actions = rule.get("actions", {})
-            action_items = actions.get("items", []) if isinstance(actions, dict) else []
-            for action in action_items:
+            for action in _get_ref_items(rule, "actionsReference"):
                 if action.get("forward") and action.get("pool"):
                     pool_path = action["pool"]
                     if pool_path not in pools:
@@ -197,12 +194,10 @@ async def _build_flow(client: F5Client, partition: str, vs_name: str) -> dict:
     for node_id, info in detail_nodes.items():
         if info["type"] == "policy":
             pol = policy_map.get(info["name"], {})
-            rules = pol.get("rules", {})
-            rule_items = rules.get("items", []) if isinstance(rules, dict) else []
             detail_store[node_id] = {
                 "type": "policy",
                 "name": info["name"],
-                "rules": [_serialize_rule(r) for r in rule_items],
+                "rules": [_serialize_rule(r) for r in _get_ref_items(pol, "rulesReference")],
             }
         elif info["type"] == "irule":
             irule = irule_map.get(info["name"], {})
@@ -227,13 +222,17 @@ async def _build_flow(client: F5Client, partition: str, vs_name: str) -> dict:
 
 
 def _serialize_rule(rule: dict) -> dict:
-    conditions = rule.get("conditions", {})
-    cond_items = conditions.get("items", []) if isinstance(conditions, dict) else []
-    actions = rule.get("actions", {})
-    action_items = actions.get("items", []) if isinstance(actions, dict) else []
     return {
         "name": rule.get("name", ""),
         "ordinal": rule.get("ordinal", 0),
-        "conditions": cond_items,
-        "actions": action_items,
+        "conditions": _get_ref_items(rule, "conditionsReference"),
+        "actions": _get_ref_items(rule, "actionsReference"),
     }
+
+
+def _get_ref_items(obj: dict, key: str) -> list:
+    """Extract items from a *Reference subcollection field."""
+    ref = obj.get(key, {})
+    if isinstance(ref, dict):
+        return ref.get("items", [])
+    return []

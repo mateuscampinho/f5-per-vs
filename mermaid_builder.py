@@ -53,22 +53,16 @@ def build_diagram(vs_data: dict, pools: dict, policies: list, irules: list) -> t
         lines.append(f'  {vs_id} -->|"LTM Policy"| {pol_id}["{_label(pol_name)}"]:::policy')
         detail_nodes[pol_id] = {"type": "policy", "name": pol_name}
 
-        rules = policy_data.get("rules", {})
-        rule_items = rules.get("items", []) if isinstance(rules, dict) else []
-
-        for rule in rule_items:
+        for rule in _ref_items(policy_data, "rulesReference"):
             rule_name = rule.get("name", "rule")
             rule_id = _safe_id(f"rule_{pol_name}_{rule_name}")
 
-            conditions = rule.get("conditions", {})
-            cond_items = conditions.get("items", []) if isinstance(conditions, dict) else []
+            cond_items = _ref_items(rule, "conditionsReference")
             cond_str = "; ".join(_build_condition_label(c) for c in cond_items[:2]) or "no conditions"
 
             lines.append(f'  {pol_id} --> {rule_id}["Rule: {_label(rule_name)}<br/>If: {_label(cond_str)}"]')
 
-            actions = rule.get("actions", {})
-            action_items = actions.get("items", []) if isinstance(actions, dict) else []
-            for action in action_items:
+            for action in _ref_items(rule, "actionsReference"):
                 if action.get("forward") and action.get("pool"):
                     fwd_pool_path = action["pool"]
                     if fwd_pool_path in pools:
@@ -100,10 +94,42 @@ def build_diagram(vs_data: dict, pools: dict, policies: list, irules: list) -> t
 
 
 def _build_condition_label(cond: dict) -> str:
-    parts = [k for k in ("httpUri", "httpHeader", "httpMethod", "sslExtension") if cond.get(k)]
-    values = cond.get("values", [])
-    val_str = ", ".join(str(v) for v in values[:2])
-    return f"{'/'.join(parts) or 'match'}: {val_str}" if val_str else "/".join(parts) or "condition"
+    # Operator
+    op = "NOT " if cond.get("not") else ""
+    if cond.get("startsWith"):    op += "startsWith"
+    elif cond.get("endsWith"):    op += "endsWith"
+    elif cond.get("contains"):    op += "contains"
+    elif cond.get("equals"):      op += "equals"
+    elif cond.get("matches"):     op += "matches"
+    else:                         op += "is"
+
+    # Subject
+    if cond.get("httpUri"):
+        subj = "URI.path" if cond.get("path") else "URI"
+    elif cond.get("httpHeader"):
+        subj = f"Header({cond.get('tmName','')})"
+    elif cond.get("httpMethod"):
+        subj = "Method"
+    elif cond.get("address") and cond.get("tcp"):
+        subj = "src-IP"
+    elif cond.get("sslExtension"):
+        subj = "SSL"
+    else:
+        subj = "match"
+
+    # Value
+    if cond.get("datagroup"):
+        val = f"datagroup:{cond['datagroup'].split('/')[-1]}"
+    else:
+        vals = cond.get("values", [])
+        val = ", ".join(str(v) for v in vals[:2])
+
+    return f"{subj} {op} {val}".strip() if val else f"{subj} {op}".strip()
+
+
+def _ref_items(obj: dict, key: str) -> list:
+    ref = obj.get(key, {})
+    return ref.get("items", []) if isinstance(ref, dict) else []
 
 
 def _append_members(lines: list, pool_id: str, members: list):

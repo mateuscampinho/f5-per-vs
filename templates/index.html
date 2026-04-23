@@ -428,11 +428,14 @@
 
     return detail.rules.map(rule => {
       const conds = (rule.conditions || []).map(c => {
-        const keys = ['httpUri','httpHeader','httpMethod','httpCookie','sslExtension','geoip'];
-        const match = keys.filter(k => c[k]).join('/') || 'match';
-        const op    = c.equals ? '==' : c.contains ? 'contains' : c.startsWith ? 'startsWith' : c.not ? 'not' : '';
-        const vals  = (c.values || []).join(', ');
-        return `<div class="cond-row">${esc(match)} ${esc(op)} ${esc(vals)}</div>`;
+        const not = c.not ? 'NOT ' : '';
+        const op  = c.startsWith ? 'startsWith' : c.endsWith ? 'endsWith' : c.contains ? 'contains' : c.equals ? 'equals' : c.matches ? 'matches' : 'is';
+        let subj  = c.httpUri ? (c.path ? 'URI.path' : 'URI')
+                  : c.httpHeader ? `Header(${c.tmName||''})` : c.httpMethod ? 'Method'
+                  : (c.address && c.tcp) ? 'src-IP' : c.sslExtension ? 'SSL' : 'match';
+        const val = c.datagroup ? `datagroup:${c.datagroup.split('/').pop()}`
+                  : (c.values||[]).join(', ');
+        return `<div class="cond-row">${esc(subj)} ${esc(not+op)} ${esc(val)}</div>`;
       }).join('') || '<div class="empty-note">Sem condições (default)</div>';
 
       const acts = (rule.actions || []).map(a => {
@@ -441,9 +444,12 @@
         if (a.reset)              return `<div class="act-row">reset</div>`;
         if (a.drop)               return `<div class="act-row">drop</div>`;
         if (a.persist)            return `<div class="act-row">persist: ${esc(a.tmName || '')}</div>`;
-        if (a.setVariable)        return `<div class="act-row">set-variable: ${esc(a.variableName || '')} = ${esc(a.expression || '')}</div>`;
-        const key = Object.keys(a).find(k => !['name','ordinal','kind','selfLink'].includes(k)) || 'action';
-        return `<div class="act-row">${esc(key)}</div>`;
+        if (a.setVariable)        return `<div class="act-row">set-variable: ${esc(a.variableName||'')} = ${esc(a.expression||'')}</div>`;
+        if (a.httpReply && a.redirect) return `<div class="act-row">HTTP reply redirect → ${esc(a.location||'')}</div>`;
+        const skip = new Set(['name','ordinal','kind','selfLink','generation','fullPath','code','expirySecs','length','offset','port','timeout','vlanId','status']);
+        const key = Object.keys(a).find(k => !skip.has(k) && a[k] === true) || 'action';
+        const extra = a.location ? ` → ${esc(a.location)}` : a.pool ? ` → ${esc(a.pool)}` : '';
+        return `<div class="act-row">${esc(key)}${extra}</div>`;
       }).join('') || '<div class="empty-note">Sem ações</div>';
 
       return `
