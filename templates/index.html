@@ -198,6 +198,7 @@
         <div class="leg-item"><div class="leg-dot" style="background:#0d2040;border-color:#58a6ff"></div>VS</div>
         <div class="leg-item"><div class="leg-dot" style="background:#f3f0ff;border-color:#6d28d9"></div>Pool</div>
         <div class="leg-item"><div class="leg-dot" style="background:#e3f2fd;border-color:#1565c0"></div>LTM Policy</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#fdf4ff;border-color:#7e22ce"></div>ASM Policy</div>
         <div class="leg-item"><div class="leg-dot" style="background:#fff3e0;border-color:#e65100"></div>iRule</div>
         <div class="leg-item"><div class="leg-dot" style="background:#fef2f2;border-color:#b91c1c"></div>WAF</div>
       </div>
@@ -228,7 +229,7 @@
         'font-family': 'Segoe UI, system-ui, sans-serif', 'font-size': '12px',
         'padding': '14px', 'background-color': '#f6f8fa',
         'border-width': 1.5, 'border-color': '#30363d', 'shape': 'roundrectangle',
-        'color': '#1f2328', 'min-width': 120, 'min-height': 40,
+        'color': '#1f2328', 'width': 'data(w)', 'height': 'data(h)',
     }},
     { selector: 'node[type="vs"]', style: {
         'background-color': '#0d2040', 'color': '#58a6ff',
@@ -243,6 +244,10 @@
     { selector: 'node[type="policy"]', style: {
         'background-color': '#e3f2fd', 'border-color': '#1565c0', 'border-width': 2,
         'font-weight': 'bold', 'cursor': 'pointer',
+    }},
+    { selector: 'node[type="policy_asm"]', style: {
+        'background-color': '#fdf4ff', 'border-color': '#7e22ce', 'border-width': 2,
+        'font-weight': 'bold', 'cursor': 'pointer', 'font-size': '11px',
     }},
     { selector: 'node[type="irule"]', style: {
         'background-color': '#fff3e0', 'border-color': '#e65100', 'border-width': 2,
@@ -407,13 +412,13 @@
     });
 
     // Click on policy / irule → show detail panel
-    cy.on('tap', 'node[type="policy"], node[type="irule"]', function(evt) {
+    cy.on('tap', 'node[type="policy"], node[type="policy_asm"], node[type="irule"]', function(evt) {
       showDetail(evt.target.id());
     });
 
     // Cursor feedback
-    cy.on('mouseover', 'node[type="policy"], node[type="irule"]', () => ge('cy').style.cursor = 'pointer');
-    cy.on('mouseout',  'node[type="policy"], node[type="irule"]', () => ge('cy').style.cursor = 'default');
+    cy.on('mouseover', 'node[type="policy"], node[type="policy_asm"], node[type="irule"]', () => ge('cy').style.cursor = 'pointer');
+    cy.on('mouseout',  'node[type="policy"], node[type="policy_asm"], node[type="irule"]', () => ge('cy').style.cursor = 'default');
 
     // Zoom level display
     cy.on('zoom', () => ge('zoom-level').textContent = Math.round(cy.zoom() * 100) + '%');

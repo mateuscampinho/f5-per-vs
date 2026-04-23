@@ -145,11 +145,10 @@ async def _build_flow(client: F5Client, partition: str, vs_name: str) -> dict:
         except Exception:
             continue
 
-        # If this policy exclusively controls ASM, treat it as WAF indicator
+        # If this policy exclusively controls ASM, capture WAF name but still render it
         controls = pol_data.get("controls", [])
         if controls == ["asm"]:
             waf_policy_from_ltm = pol_data.get("name", pol_path.split("/")[-1])
-            continue  # don't render as LTM policy branch
 
         rule_items = _get_ref_items(pol_data, "rulesReference")
         for rule in rule_items:
