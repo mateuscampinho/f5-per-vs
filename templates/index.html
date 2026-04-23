@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>F5 VS Flow Mapper</title>
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0d1117; color: #e6edf3; min-height: 100vh; }
@@ -70,17 +71,33 @@
 
     /* Main */
     .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; }
-    .toolbar { background: #161b22; border-bottom: 1px solid #30363d; padding: 7px 14px; display: flex; align-items: center; gap: 8px; font-size: .8rem; color: #8b949e; }
+    .toolbar { background: #161b22; border-bottom: 1px solid #30363d; padding: 7px 14px; display: flex; align-items: center; gap: 6px; font-size: .8rem; color: #8b949e; flex-wrap: wrap; }
     .toolbar button { width: auto; margin-top: 0; padding: 4px 10px; }
 
-    #diagram-area { flex: 1; overflow: auto; padding: 20px; display: flex; align-items: flex-start; }
-    #diagram-container { background: #fff; border-radius: 8px; padding: 20px; min-width: 500px; display: none; }
+    /* Zoom controls */
+    .zoom-controls { display: none; align-items: center; gap: 4px; margin-left: auto; }
+    .zoom-controls.visible { display: flex; }
+    .zoom-btn {
+      width: 28px; height: 28px; margin-top: 0; padding: 0; border-radius: 5px;
+      background: #21262d; border: 1px solid #30363d; color: #e6edf3;
+      font-size: 1rem; line-height: 1; cursor: pointer; display: flex;
+      align-items: center; justify-content: center;
+    }
+    .zoom-btn:hover { background: #30363d; }
+    .zoom-level { font-size: .75rem; color: #8b949e; min-width: 38px; text-align: center; }
+
+    #diagram-area { flex: 1; overflow: hidden; position: relative; background: #f6f8fa; }
+    #diagram-container {
+      width: 100%; height: 100%;
+      background: transparent; display: none;
+    }
+    #diagram-container svg { display: block; }
 
     .placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; width: 100%; color: #484f58; gap: 10px; font-size: .88rem; }
     .placeholder svg { opacity: .3; }
 
     /* Clickable node hint */
-    .hint { font-size: .75rem; color: #58a6ff88; margin-left: auto; }
+    .hint { font-size: .75rem; color: #58a6ff88; }
 
     /* Detail Panel */
     #detail-panel {
@@ -185,10 +202,14 @@
   <main class="main">
     <div class="toolbar">
       <span id="toolbar-label">Faça login e busque um Virtual Server.</span>
-      <span class="hint" id="click-hint" style="display:none">Clique em um nó de Policy ou iRule para ver detalhes</span>
-      <button class="btn-secondary" id="btn-export" onclick="exportSVG()" style="display:none;margin-left:auto">
-        Exportar SVG
-      </button>
+      <span class="hint" id="click-hint" style="display:none">&#9432; Clique em Policy/iRule para detalhes</span>
+      <div class="zoom-controls" id="zoom-controls">
+        <button class="zoom-btn" onclick="zoomOut()" title="Zoom out">&#8722;</button>
+        <span class="zoom-level" id="zoom-level">100%</span>
+        <button class="zoom-btn" onclick="zoomIn()" title="Zoom in">&#43;</button>
+        <button class="zoom-btn" onclick="zoomFit()" title="Fit ao ecrã" style="width:auto;padding:0 8px;font-size:.72rem">Fit</button>
+        <button class="zoom-btn" onclick="exportSVG()" title="Exportar SVG" style="width:auto;padding:0 8px;font-size:.72rem">SVG</button>
+      </div>
     </div>
 
     <div id="diagram-area">
@@ -218,6 +239,7 @@
 
   let sessionId = null;
   let detailStore = {};
+  let pzInstance = null;
 
   // ── Login / Logout ────────────────────────────────────
 
@@ -251,10 +273,11 @@
     ge('connected-badge').classList.remove('visible');
     ge('diagram-container').style.display = 'none';
     ge('placeholder').style.display = 'flex';
-    ge('btn-export').style.display = 'none';
+    ge('zoom-controls').classList.remove('visible');
     ge('click-hint').style.display = 'none';
     ge('toolbar-label').textContent = 'Faça login e busque um Virtual Server.';
     ge('inp-pass').value = '';
+    destroyPanZoom();
     closePanel();
   }
 
@@ -319,7 +342,9 @@
     ge('diagram-container').style.display = 'none';
     ge('placeholder').style.display = 'flex';
     ge('summary-section').style.display = 'none';
+    ge('zoom-controls').classList.remove('visible');
     ge('toolbar-label').textContent = `Carregando ${vs.name}…`;
+    destroyPanZoom();
     closePanel();
 
     const resp = await post('/api/map', { session_id: sessionId, partition: vs.partition, vs_name: vs.name });
@@ -337,25 +362,66 @@
 
     const hasDetails = Object.keys(detailStore).length > 0;
     ge('click-hint').style.display = hasDetails ? 'inline' : 'none';
+    ge('zoom-controls').classList.add('visible');
   }
 
   // ── Diagram ───────────────────────────────────────────
 
   async function renderDiagram(code) {
+    destroyPanZoom();
     const container = ge('diagram-container');
     container.innerHTML = '';
     try {
       const { svg } = await mermaid.render('mg' + Date.now(), code);
       container.innerHTML = svg;
+
+      const svgEl = container.querySelector('svg');
+      // Let svg-pan-zoom control sizing
+      svgEl.removeAttribute('width');
+      svgEl.removeAttribute('height');
+      svgEl.style.width  = '100%';
+      svgEl.style.height = '100%';
+      svgEl.style.maxWidth = 'none';
+
       ge('placeholder').style.display = 'none';
       container.style.display = 'block';
-      ge('btn-export').style.display = 'inline-block';
+      ge('zoom-controls').classList.add('visible');
+
+      pzInstance = svgPanZoom(svgEl, {
+        zoomEnabled: true,
+        panEnabled: true,
+        controlIconsEnabled: false,
+        fit: true,
+        center: true,
+        minZoom: 0.05,
+        maxZoom: 30,
+        zoomScaleSensitivity: 0.35,
+        onZoom: updateZoomLevel,
+      });
+      updateZoomLevel(pzInstance.getZoom());
       attachNodeClicks(container);
     } catch (e) {
-      container.innerHTML = `<pre style="color:#b91c1c;font-size:.72rem;white-space:pre-wrap">${esc(code)}</pre>`;
+      container.innerHTML = `<pre style="color:#b91c1c;font-size:.72rem;padding:16px;white-space:pre-wrap">${esc(code)}</pre>`;
       container.style.display = 'block';
       ge('placeholder').style.display = 'none';
     }
+  }
+
+  function destroyPanZoom() {
+    if (pzInstance) { try { pzInstance.destroy(); } catch(e) {} pzInstance = null; }
+  }
+
+  function updateZoomLevel(zoom) {
+    ge('zoom-level').textContent = Math.round(zoom * 100) + '%';
+  }
+
+  function zoomIn()  { pzInstance && pzInstance.zoomIn(); }
+  function zoomOut() { pzInstance && pzInstance.zoomOut(); }
+  function zoomFit() {
+    if (!pzInstance) return;
+    pzInstance.fit();
+    pzInstance.center();
+    updateZoomLevel(pzInstance.getZoom());
   }
 
   function attachNodeClicks(container) {
@@ -393,10 +459,15 @@
   }
 
   function exportSVG() {
-    const svg = document.querySelector('#diagram-container svg');
-    if (!svg) return;
+    const svgEl = document.querySelector('#diagram-container svg');
+    if (!svgEl) return;
+    // Clone so we can set explicit dimensions for the export
+    const clone = svgEl.cloneNode(true);
+    const bb = svgEl.getBoundingClientRect();
+    clone.setAttribute('width', bb.width);
+    clone.setAttribute('height', bb.height);
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([svg.outerHTML], { type: 'image/svg+xml' }));
+    a.href = URL.createObjectURL(new Blob([clone.outerHTML], { type: 'image/svg+xml' }));
     a.download = 'f5-vs-flow.svg';
     a.click();
   }

@@ -9,11 +9,23 @@ def _label(text: str) -> str:
     return str(text).replace('"', "'")
 
 
+def _pool_label(pool_name: str, members: list) -> str:
+    """Build a pool node label with members embedded inside the box."""
+    header = f"<b>{_label(pool_name)}</b>"
+    if not members:
+        return header
+    rows = []
+    for m in members:
+        addr  = m.get("address", m.get("name", ""))
+        port  = m.get("port", "")
+        state = (m.get("state") or "").lower()
+        icon  = "&#9679;" if "up" in state else "&#9675;" if state else "&#183;"
+        rows.append(f"{icon} {_label(addr)}:{port}")
+    return header + "<br/>" + "<br/>".join(rows)
+
+
 def build_diagram(vs_data: dict, pools: dict, policies: list, irules: list) -> tuple[str, dict]:
-    """
-    Returns (mermaid_diagram, detail_nodes).
-    detail_nodes: {node_id: {"type": "policy"|"irule", "name": str}}
-    """
+    """Returns (mermaid_diagram, detail_nodes)."""
     lines = ["flowchart TD"]
     detail_nodes: dict[str, dict] = {}
 
@@ -43,8 +55,8 @@ def build_diagram(vs_data: dict, pools: dict, policies: list, irules: list) -> t
     if default_pool_path and default_pool_path in pools:
         pool = pools[default_pool_path]
         pool_id = _safe_id(f"pool_{pool.get('name', 'pool')}")
-        lines.append(f'  {vs_id} -->|"Default Pool"| {pool_id}["{_label(pool.get("name", default_pool_path))}"]')
-        _append_members(lines, pool_id, pool.get("members_detail", []))
+        lbl = _pool_label(pool.get("name", default_pool_path), pool.get("members_detail", []))
+        lines.append(f'  {vs_id} -->|"Default Pool"| {pool_id}["{lbl}"]:::pool')
 
     # Branch 2: LTM Policies
     for policy_data in policies:
@@ -56,10 +68,8 @@ def build_diagram(vs_data: dict, pools: dict, policies: list, irules: list) -> t
         for rule in _ref_items(policy_data, "rulesReference"):
             rule_name = rule.get("name", "rule")
             rule_id = _safe_id(f"rule_{pol_name}_{rule_name}")
-
             cond_items = _ref_items(rule, "conditionsReference")
             cond_str = "; ".join(_build_condition_label(c) for c in cond_items[:2]) or "no conditions"
-
             lines.append(f'  {pol_id} --> {rule_id}["Rule: {_label(rule_name)}<br/>If: {_label(cond_str)}"]')
 
             for action in _ref_items(rule, "actionsReference"):
@@ -68,10 +78,8 @@ def build_diagram(vs_data: dict, pools: dict, policies: list, irules: list) -> t
                     if fwd_pool_path in pools:
                         fwd_pool = pools[fwd_pool_path]
                         fwd_pool_id = _safe_id(f"fwdpool_{pol_name}_{rule_name}_{fwd_pool.get('name','p')}")
-                        lines.append(
-                            f'  {rule_id} -->|"forward"| {fwd_pool_id}["{_label(fwd_pool.get("name", fwd_pool_path))}"]'
-                        )
-                        _append_members(lines, fwd_pool_id, fwd_pool.get("members_detail", []))
+                        lbl = _pool_label(fwd_pool.get("name", fwd_pool_path), fwd_pool.get("members_detail", []))
+                        lines.append(f'  {rule_id} -->|"forward"| {fwd_pool_id}["{lbl}"]:::pool')
 
     # Branch 3: iRules
     for irule_data in irules:
@@ -82,28 +90,24 @@ def build_diagram(vs_data: dict, pools: dict, policies: list, irules: list) -> t
 
         for pool_path, pool in irule_data.get("referenced_pools", {}).items():
             p_id = _safe_id(f"irulepool_{rule_name}_{pool.get('name','p')}")
-            lines.append(
-                f'  {irule_id} -->|"pool cmd"| {p_id}["{_label(pool.get("name", pool_path))}"]'
-            )
-            _append_members(lines, p_id, pool.get("members_detail", []))
+            lbl = _pool_label(pool.get("name", pool_path), pool.get("members_detail", []))
+            lines.append(f'  {irule_id} -->|"pool cmd"| {p_id}["{lbl}"]:::pool')
 
-    lines.append("  classDef irule fill:#ffe0b2,stroke:#e65100")
+    lines.append("  classDef irule  fill:#ffe0b2,stroke:#e65100")
     lines.append("  classDef policy fill:#e3f2fd,stroke:#1565c0")
-    lines.append("  classDef member fill:#e8f5e9,stroke:#388e3c")
+    lines.append("  classDef pool   fill:#f3f0ff,stroke:#6d28d9")
     return "\n".join(lines), detail_nodes
 
 
 def _build_condition_label(cond: dict) -> str:
-    # Operator
     op = "NOT " if cond.get("not") else ""
-    if cond.get("startsWith"):    op += "startsWith"
-    elif cond.get("endsWith"):    op += "endsWith"
-    elif cond.get("contains"):    op += "contains"
-    elif cond.get("equals"):      op += "equals"
-    elif cond.get("matches"):     op += "matches"
-    else:                         op += "is"
+    if cond.get("startsWith"):  op += "startsWith"
+    elif cond.get("endsWith"):  op += "endsWith"
+    elif cond.get("contains"):  op += "contains"
+    elif cond.get("equals"):    op += "equals"
+    elif cond.get("matches"):   op += "matches"
+    else:                       op += "is"
 
-    # Subject
     if cond.get("httpUri"):
         subj = "URI.path" if cond.get("path") else "URI"
     elif cond.get("httpHeader"):
@@ -117,12 +121,10 @@ def _build_condition_label(cond: dict) -> str:
     else:
         subj = "match"
 
-    # Value
     if cond.get("datagroup"):
         val = f"datagroup:{cond['datagroup'].split('/')[-1]}"
     else:
-        vals = cond.get("values", [])
-        val = ", ".join(str(v) for v in vals[:2])
+        val = ", ".join(str(v) for v in cond.get("values", [])[:2])
 
     return f"{subj} {op} {val}".strip() if val else f"{subj} {op}".strip()
 
@@ -130,16 +132,3 @@ def _build_condition_label(cond: dict) -> str:
 def _ref_items(obj: dict, key: str) -> list:
     ref = obj.get(key, {})
     return ref.get("items", []) if isinstance(ref, dict) else []
-
-
-def _append_members(lines: list, pool_id: str, members: list):
-    for i, member in enumerate(members):
-        m_name = member.get("name", f"member{i}")
-        m_addr = member.get("address", "")
-        m_port = member.get("port", "")
-        m_state = member.get("state", "")
-        m_id = _safe_id(f"{pool_id}_m{i}")
-        label = f"{_label(m_name)}<br/>{_label(m_addr)}:{m_port}"
-        if m_state:
-            label += f"<br/>({_label(m_state)})"
-        lines.append(f'  {pool_id} --> {m_id}["{label}"]:::member')
