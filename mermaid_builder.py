@@ -16,11 +16,15 @@ def _pool_label(pool_name: str, members: list) -> str:
         return header
     rows = []
     for m in members:
-        addr  = m.get("address", m.get("name", ""))
+        raw_addr = m.get("address", m.get("name", ""))
+        # Strip F5 route domain suffix (e.g. 10.0.1.127%1 -> 10.0.1.127)
+        addr = raw_addr.split("%")[0]
         port  = m.get("port", "")
         state = (m.get("state") or "").lower()
-        icon  = "&#9679;" if "up" in state else "&#9675;" if state else "&#183;"
-        rows.append(f"{icon} {_label(addr)}:{port}")
+        # Use plain ASCII markers — unicode bullets break inside Mermaid SVG labels
+        icon  = "[UP]  " if "up" in state else "[DWN] " if state else "[?]   "
+        port_str = f":{port}" if port and str(port) != "0" else ""
+        rows.append(f"{icon}{_label(addr)}{port_str}")
     return header + "<br/>" + "<br/>".join(rows)
 
 
