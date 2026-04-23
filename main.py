@@ -133,6 +133,8 @@ async def _build_flow(client: F5Client, partition: str, vs_name: str) -> dict:
         pools[default_pool_path] = await client.get_pool(default_pool_path)
 
     # LTM Policies via subcollection endpoint
+    # Separate ASM auto-policies (controls=["asm"]) from real LTM policies
+    waf_policy_from_ltm: str | None = None
     policy_refs = await client.get_vs_policies(partition, vs_name)
     for p_ref in policy_refs:
         pol_path = p_ref.get("fullPath") or p_ref.get("name", "")
@@ -142,6 +144,12 @@ async def _build_flow(client: F5Client, partition: str, vs_name: str) -> dict:
             pol_data = await client.get_policy(pol_path)
         except Exception:
             continue
+
+        # If this policy exclusively controls ASM, treat it as WAF indicator
+        controls = pol_data.get("controls", [])
+        if controls == ["asm"]:
+            waf_policy_from_ltm = pol_data.get("name", pol_path.split("/")[-1])
+            continue  # don't render as LTM policy branch
 
         rule_items = _get_ref_items(pol_data, "rulesReference")
         for rule in rule_items:
@@ -184,8 +192,8 @@ async def _build_flow(client: F5Client, partition: str, vs_name: str) -> dict:
         irule["referenced_pools"] = referenced_pools
         irules_data.append(irule)
 
-    # WAF / ASM detection
-    waf_policy = await client.get_vs_waf_policy(partition, vs_name)
+    # WAF / ASM detection — try ASM API first, fall back to LTM policy detection
+    waf_policy = await client.get_vs_waf_policy(partition, vs_name) or waf_policy_from_ltm
 
     graph, detail_nodes = build_graph(vs_data, pools, policies_data, irules_data, waf_policy)
 

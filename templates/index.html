@@ -224,11 +224,11 @@
   const CY_STYLE = [
     { selector: 'node', style: {
         'label': 'data(label)', 'text-valign': 'center', 'text-halign': 'center',
-        'text-wrap': 'wrap', 'text-max-width': '220px',
+        'text-wrap': 'wrap', 'text-max-width': '200px',
         'font-family': 'Segoe UI, system-ui, sans-serif', 'font-size': '12px',
-        'padding': '12px', 'background-color': '#f6f8fa',
+        'padding': '14px', 'background-color': '#f6f8fa',
         'border-width': 1.5, 'border-color': '#30363d', 'shape': 'roundrectangle',
-        'color': '#1f2328',
+        'color': '#1f2328', 'min-width': 120, 'min-height': 40,
     }},
     { selector: 'node[type="vs"]', style: {
         'background-color': '#0d2040', 'color': '#58a6ff',
@@ -238,6 +238,7 @@
         'background-color': '#f3f0ff', 'border-color': '#6d28d9', 'border-width': 2,
         'font-family': 'Consolas, Monaco, monospace', 'font-size': '11px',
         'text-halign': 'left', 'text-justification': 'left', 'text-margin-x': 8,
+        'text-max-width': '260px', 'min-width': 160,
     }},
     { selector: 'node[type="policy"]', style: {
         'background-color': '#e3f2fd', 'border-color': '#1565c0', 'border-width': 2,
@@ -391,11 +392,14 @@
       style: CY_STYLE,
       layout: {
         name: 'dagre',
-        rankDir: 'TB',
-        nodeSep: 60,
-        rankSep: 80,
-        padding: 40,
+        rankDir: 'LR',
+        nodeSep: 40,
+        rankSep: 120,
+        edgeSep: 20,
+        padding: 60,
         animate: false,
+        nodeDimensionsIncludeLabels: true,
+        ranker: 'network-simplex',
       },
       wheelSensitivity: 0.3,
       minZoom: 0.05,

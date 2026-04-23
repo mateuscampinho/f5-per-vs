@@ -31,12 +31,26 @@ class F5Client:
 
     async def get_vs_waf_policy(self, partition: str, vs_name: str) -> str | None:
         """Return ASM policy name if WAF is enabled on this VS, else None."""
+        full_path = f"/{partition}/{vs_name}"
         try:
-            vs_path = f"/Common/{vs_name}" if partition == "Common" else f"/{partition}/{vs_name}"
-            data = await self._get(f"/asm/policies?$filter=virtualServers+eq+{vs_path}&$select=name")
-            items = data.get("items", [])
-            if items:
-                return items[0].get("name")
+            # Try filtered query first (URL-encode the slash)
+            encoded = full_path.replace("/", "%2F")
+            data = await self._get(f"/asm/policies?$filter=virtualServers+eq+{encoded}&$select=name,virtualServers")
+            for item in data.get("items", []):
+                vs_list = item.get("virtualServers", [])
+                if not vs_list or any(full_path in str(v) for v in vs_list):
+                    return item.get("name")
+        except Exception:
+            pass
+        try:
+            # Fallback: fetch all and match client-side (capped to avoid large responses)
+            data = await self._get("/asm/policies?$select=name,virtualServers&$top=200")
+            for item in data.get("items", []):
+                for vs in item.get("virtualServers", []):
+                    if isinstance(vs, str) and vs_name in vs:
+                        return item.get("name")
+                    if isinstance(vs, dict) and vs_name in vs.get("name", ""):
+                        return item.get("name")
         except Exception:
             pass
         return None
